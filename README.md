@@ -1,8 +1,6 @@
-# Wantok Lender
+# Sparkle Consultants — Online Lending Platform
 
-Multi-tenant B2B micro-finance platform for PNG street lenders and
-registered MSME finance operators — offline-tolerant, self-hostable,
-built for volatile connectivity and grid instability.
+A fully online lending service for Papua New Guinea, operated as a single-business automated lending platform with customer self-service portal, automated credit decisioning, digital contracts, payment reconciliation, and administrative control.
 
 ## Repo layout
 
@@ -41,7 +39,7 @@ docker-compose.yml     Coolify-ready multi-service deploy
 
 The system comes with an idempotent automatic database seeder. On startup, a demo tenant with live statistics, multiple registered borrowers, outstanding loans, and collateral logs is created.
 
-- **Seed login email**: `seed@wantok.com`
+- **Seed login email**: `owner@sparkleconsultants.com`
 - **Password**: `password123`
 
 ## What you still need to add before production

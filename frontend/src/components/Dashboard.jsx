@@ -29,7 +29,7 @@ export default function Dashboard() {
     <div className="min-h-screen bg-ledger-paper px-4 py-6 sm:px-8 sm:py-8">
       <header className="mb-6">
         <div className="text-xs uppercase tracking-widest text-bilum-teal font-medium">
-          Wantok Lender
+          Sparkle Consultants
         </div>
         <h1 className="font-display text-3xl sm:text-4xl font-semibold text-kina-deep">
           {data.tenantName} — Ledger Overview
