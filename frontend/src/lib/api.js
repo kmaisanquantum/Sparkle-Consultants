@@ -5,7 +5,7 @@ const API_BASE = import.meta.env.VITE_API_BASE || "";
  * Automatically adds the JWT token from localStorage and handles 401 redirects.
  */
 async function authFetch(endpoint, options = {}) {
-  const token = localStorage.getItem("wantok_token");
+  const token = localStorage.getItem("sparkle_token");
   const headers = {
     "Content-Type": "application/json",
     ...(options.headers || {}),
@@ -20,7 +20,7 @@ async function authFetch(endpoint, options = {}) {
   });
 
   if (response.status === 401) {
-    localStorage.removeItem("wantok_token");
+    localStorage.removeItem("sparkle_token");
     window.dispatchEvent(new Event("unauthorized"));
   }
 
@@ -40,7 +40,7 @@ export async function login(email, password) {
   }
 
   const data = await res.json();
-  localStorage.setItem("wantok_token", data.access_token);
+  localStorage.setItem("sparkle_token", data.access_token);
   return data;
 }
 

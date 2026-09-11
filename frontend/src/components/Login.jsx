@@ -27,10 +27,10 @@ export default function Login({ onLoginSuccess }) {
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
         <span className="text-3xl">🔑</span>
         <h2 className="mt-4 text-center text-3xl font-display font-semibold text-kina-deep uppercase tracking-wider">
-          Wantok Lender
+          Sparkle Consultants
         </h2>
         <p className="mt-2 text-center text-sm text-ledger-ink/60">
-          Multi-tenant Street & MSME Ledger Ledger Access
+          A fully online lending service for Papua New Guinea
         </p>
       </div>
 
@@ -59,7 +59,7 @@ export default function Login({ onLoginSuccess }) {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="e.g. seed@wantok.com"
+                  placeholder="e.g. owner@sparkleconsultants.com"
                   className="appearance-none block w-full px-3 py-2 border border-ledger-rule rounded-sm shadow-sm placeholder-ledger-ink/30 focus:outline-none focus:ring-bilum-teal focus:border-bilum-teal sm:text-sm bg-ledger-paper/50"
                 />
               </div>
@@ -100,7 +100,7 @@ export default function Login({ onLoginSuccess }) {
 
           <div className="mt-6 border-t border-ledger-rule pt-4 text-center">
             <span className="text-xs text-ledger-ink/50">
-              Seed login: <code className="bg-ledger-paper px-1 py-0.5 rounded">seed@wantok.com</code> / <code className="bg-ledger-paper px-1 py-0.5 rounded">password123</code>
+              Seed login: <code className="bg-ledger-paper px-1 py-0.5 rounded">owner@sparkleconsultants.com</code> / <code className="bg-ledger-paper px-1 py-0.5 rounded">password123</code>
             </span>
           </div>
         </div>
