@@ -72,10 +72,11 @@ The application deploys as a **SINGLE service** on port 8000, bundling the built
 ### Option A: Single-Container Application Deploy (Recommended)
 1. In Coolify or your deployment platform, create a **New Resource → Application**.
 2. Point it at this repository with:
-   - **Build Pack**: `Dockerfile` (preferred) OR `Nixpacks` (a root `nixpacks.toml` is provided to prevent multi-app auto-detection errors on platforms forcing Nixpacks).
+   - **Build Pack**: `Dockerfile` (preferred, bypasses Nixpacks entirely) OR `Nixpacks` (a root `nixpacks.toml` is provided for platforms that force Nixpacks).
    - **Base Directory**: `/` (repo root)
    - **Exposed Port**: `8000` (the single exposed port serving both API and SPA)
-3. Configure the following environment variables in your platform control panel:
+3. **Important for Dockerfile builds:** If your platform UI has a "Nix Packages" or custom packages field configured (e.g., listing `python312`, `tesseract`, etc.), clear that field when using the Dockerfile build pack to avoid environment conflict errors.
+4. Configure the following environment variables in your platform control panel:
    - `DATABASE_URL`: Connection string to your PostgreSQL database using the async driver, e.g., `postgresql+asyncpg://<user>:<password>@<managed-db-host>:5432/<dbname>`. (Note: ensure you set this explicitly in your panel rather than relying on the hardcoded fallback `wantok` connection string in `backend/app/core/config.py`).
    - `HASH_PEPPER`: Secret random string for identity hashing.
    - `FIELD_ENCRYPTION_KEY`: A symmetric 32-byte key encoded in base64. Generate one using:
@@ -83,7 +84,7 @@ The application deploys as a **SINGLE service** on port 8000, bundling the built
      python -c "import os,base64;print(base64.b64encode(os.urandom(32)).decode())"
      ```
    - `JWT_SECRET`: Random secret for signing access tokens.
-4. Deploy. On startup, the FastAPI app automatically runs database table migrations (`Base.metadata.create_all`) and seeds initial demo stats, making the app immediately functional.
+5. Deploy. On startup, the FastAPI app automatically runs database table migrations (`Base.metadata.create_all`) and seeds initial demo stats, making the app immediately functional.
 
 ### Option B: Multi-Service Docker Compose
 1. In Coolify: **New Resource → Docker Compose**, pointing at `docker-compose.yml` at the root.
