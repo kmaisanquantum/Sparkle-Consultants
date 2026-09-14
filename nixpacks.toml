@@ -1,7 +1,7 @@
 providers = ["node"]
 
 [phases.setup]
-nixPkgs = ["nodejs_20", "python312", "tesseract", "poppler-utils", "postgresql"]
+nixPkgs = ["nodejs_20", "python312", "tesseract", "poppler_utils", "postgresql"]
 
 [phases.install]
 cmds = [

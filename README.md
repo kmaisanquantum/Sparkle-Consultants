@@ -75,7 +75,9 @@ The application deploys as a **SINGLE service** on port 8000, bundling the built
    - **Build Pack**: `Dockerfile` (preferred, bypasses Nixpacks entirely) OR `Nixpacks` (a root `nixpacks.toml` is provided for platforms that force Nixpacks).
    - **Base Directory**: `/` (repo root)
    - **Exposed Port**: `8000` (the single exposed port serving both API and SPA)
-3. **Important for Dockerfile builds:** If your platform UI has a "Nix Packages" or custom packages field configured (e.g., listing `python312`, `tesseract`, etc.), clear that field when using the Dockerfile build pack to avoid environment conflict errors.
+3. **Important for Dockerfile vs Nixpacks builds:**
+   - **Dockerfile build pack (recommended):** Clear any "Nix Packages" or custom packages field in Coolify's UI entirely so it does not attempt to resolve Nix dependencies.
+   - **Nixpacks build pack:** Note that Coolify's UI "Nix Packages" field overrides `nixpacks.toml`. If configured in the UI, ensure exact valid Nix package attribute names are used (e.g., `poppler_utils` with an underscore, NOT `poppler-utils`, `tesseract`, `nodejs_20`, `python312`) and avoid specifying duplicate Python packages.
 4. Configure the following environment variables in your platform control panel:
    - `DATABASE_URL`: Connection string to your PostgreSQL database using the async driver, e.g., `postgresql+asyncpg://<user>:<password>@<managed-db-host>:5432/<dbname>`. (Note: ensure you set this explicitly in your panel rather than relying on the hardcoded fallback `wantok` connection string in `backend/app/core/config.py`).
    - `HASH_PEPPER`: Secret random string for identity hashing.
