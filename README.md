@@ -65,20 +65,18 @@ npm install
 npm run dev
 ```
 
-## Deploying on a self-hosted VPS via Coolify
+## Deploying on a self-hosted VPS via Coolify / PaaS Platforms
 
-The application is fully optimized to be deployed either as a single multi-stage container ("Application" mode in Coolify) or as separate compose services.
+The application deploys as a **SINGLE service** on port 8000, bundling the built React frontend directly into the Python backend container (serving the SPA via FastAPI). This eliminates cross-container CORS, 502 gateway errors, or inter-service DNS resolution issues.
 
-### Option A: Single-Container SaaS Model (Recommended)
-This approach bundles the built React frontend directly into the Python container, running both the API and the SPA on a single port (8000), eliminating cross-container CORS, 502, or DNS issues.
-
-1. In Coolify, create a **New Resource → Application**.
+### Option A: Single-Container Application Deploy (Recommended)
+1. In Coolify or your deployment platform, create a **New Resource → Application**.
 2. Point it at this repository with:
-   - **Build Pack**: `Dockerfile`
+   - **Build Pack**: `Dockerfile` (preferred) OR `Nixpacks` (a root `nixpacks.toml` is provided to prevent multi-app auto-detection errors on platforms forcing Nixpacks).
    - **Base Directory**: `/` (repo root)
-   - **Exposed Port**: `8000`
-3. Configure the following environment variables in Coolify's panel:
-   - `DATABASE_URL`: Connection string to your managed/standalone PostgreSQL database using the async driver, e.g., `postgresql+asyncpg://<user>:<password>@<managed-db-host>:5432/<dbname>`.
+   - **Exposed Port**: `8000` (the single exposed port serving both API and SPA)
+3. Configure the following environment variables in your platform control panel:
+   - `DATABASE_URL`: Connection string to your PostgreSQL database using the async driver, e.g., `postgresql+asyncpg://<user>:<password>@<managed-db-host>:5432/<dbname>`. (Note: ensure you set this explicitly in your panel rather than relying on the hardcoded fallback `wantok` connection string in `backend/app/core/config.py`).
    - `HASH_PEPPER`: Secret random string for identity hashing.
    - `FIELD_ENCRYPTION_KEY`: A symmetric 32-byte key encoded in base64. Generate one using:
      ```bash
