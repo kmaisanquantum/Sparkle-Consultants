@@ -79,7 +79,7 @@ The application deploys as a **SINGLE service** on port 8000, bundling the built
    - **Coolify UI "Nix Packages" Field:** Clear any "Nix Packages" or custom packages field in Coolify's UI entirely when using the Dockerfile build pack. If forced to use Nixpacks via UI configuration, ensure exact valid Nix package attribute names are used (`poppler_utils` with an underscore, NOT `poppler-utils`, `tesseract`, `nodejs_20`, `python312`) and do not specify duplicate Python derivations.
    - **Coolify Domains / FQDN Field:** Ensure the domain field contains a single clean URL value like `https://www.sparcons.com` (no semicolons, trailing paths, or duplicate domain entries).
 4. Configure the required environment variables in your platform control panel:
-   - `DATABASE_URL`: Full connection string to your managed PostgreSQL database using the async driver, e.g., `postgresql+asyncpg://<user>:<password>@<managed-db-host>:5432/<dbname>`. (**Must be set explicitly in your panel; do NOT rely on the localhost fallback string**).
+   - `DATABASE_URL`: Full connection string to your managed PostgreSQL database using the async driver, e.g., `postgresql+asyncpg://<user>:<password>@<managed-db-host>:5432/<dbname>`. (**Must use the async driver scheme `postgresql+asyncpg://`; set this explicitly in your panel rather than relying on localhost defaults**).
    - `HASH_PEPPER`: Secret random string for identity hashing.
    - `FIELD_ENCRYPTION_KEY`: A symmetric 32-byte key encoded in base64. Generate one using:
      ```bash
