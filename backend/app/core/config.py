@@ -3,6 +3,7 @@ Central configuration. All values are overridden via environment
 variables in production (Coolify injects these at deploy time) —
 nothing sensitive is hardcoded.
 """
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -10,6 +11,17 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     database_url: str = "postgresql+asyncpg://wantok:wantok@localhost:5432/wantok_lender"
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def normalize_database_url(cls, v: str) -> str:
+        if not isinstance(v, str):
+            return v
+        if v.startswith("postgres://"):
+            return "postgresql+asyncpg://" + v[len("postgres://"):]
+        if v.startswith("postgresql://"):
+            return "postgresql+asyncpg://" + v[len("postgresql://"):]
+        return v
 
     # Pepper used alongside per-record salts when hashing phone/ID numbers.
     # Must be a long random secret set via env var in production, never
