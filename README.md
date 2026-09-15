@@ -72,14 +72,16 @@ The application deploys as a **SINGLE service** on port 8000, bundling the built
 ### Option A: Single-Container Application Deploy (Recommended)
 1. In Coolify or your deployment platform, create a **New Resource → Application**.
 2. Point it at this repository with:
-   - **Build Pack**: `Dockerfile` (preferred, bypasses Nixpacks entirely) OR `Nixpacks` (a root `nixpacks.toml` is provided for platforms that force Nixpacks).
+   - **Build Pack**: `Dockerfile` (bypasses Nixpacks completely; Nixpacks should NOT be used).
    - **Base Directory**: `/` (repo root)
    - **Exposed Port / Ports Exposes**: `8000` (the container listens on 8000, serving both API and React SPA).
 3. **Important Configuration Notes:**
-   - **Coolify UI "Nix Packages" Field:** Clear any "Nix Packages" or custom packages field in Coolify's UI entirely when using the Dockerfile build pack. If forced to use Nixpacks via UI configuration, ensure exact valid Nix package attribute names are used (`poppler_utils` with an underscore, NOT `poppler-utils`, `tesseract`, `nodejs_20`, `python312`) and do not specify duplicate Python derivations.
+   - **Coolify UI "Nix Packages" Field:** Clear any "Nix Packages" or custom packages field in Coolify's UI entirely when using the Dockerfile build pack.
    - **Coolify Domains / FQDN Field:** Ensure the domain field contains a single clean URL value like `https://www.sparcons.com` (no semicolons, trailing paths, or duplicate domain entries).
+   - **Coolify Managed Postgres URL:** Coolify's internal Postgres URL defaults to `postgres://...`. The app automatically normalizes `postgres://` and `postgresql://` schemes to `postgresql+asyncpg://` at load time so the async SQLAlchemy engine connects seamlessly. Ensure the internal database hostname is reachable on the shared project network.
+   - **Redeployment:** Any updates to environment variables in Coolify require clicking **Redeploy**.
 4. Configure the required environment variables in your platform control panel:
-   - `DATABASE_URL`: Full connection string to your managed PostgreSQL database using the async driver, e.g., `postgresql+asyncpg://<user>:<password>@<managed-db-host>:5432/<dbname>`. (**Must use the async driver scheme `postgresql+asyncpg://`; set this explicitly in your panel rather than relying on localhost defaults**).
+   - `DATABASE_URL`: Connection string to your managed PostgreSQL database (e.g. `postgres://postgres:PASSWORD@pw70moru8exgdlc9qwppx4lx:5432/postgres` or `postgresql+asyncpg://...`).
    - `HASH_PEPPER`: Secret random string for identity hashing.
    - `FIELD_ENCRYPTION_KEY`: A symmetric 32-byte key encoded in base64. Generate one using:
      ```bash
