@@ -3,7 +3,7 @@ Central configuration. All values are overridden via environment
 variables in production (Coolify injects these at deploy time) —
 nothing sensitive is hardcoded.
 """
-from typing import List, Union
+from typing import List, Optional
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expiry_minutes: int = 60 * 12
 
+    # Initial Seed Administrator Password (if unset, a random password is generated and logged)
+    seed_admin_password: Optional[str] = None
+
     # Regulatory ceiling: PNG Alesco public-service payroll deduction cap.
     alesco_max_total_deduction_pct: float = 50.00
 
@@ -53,7 +56,7 @@ class Settings(BaseSettings):
     smtp_port: int = 587
     smtp_username: str = ""
     smtp_password: str = ""
-    smtp_from_email: str = "noreply@sparkleconsultants.com"
+    smtp_from_email: str = "info@sparkleconsultants.com"
 
     # SMS Provider configuration
     sms_provider_url: str = "https://api.sms-gateway-stub.pg/v1/send"

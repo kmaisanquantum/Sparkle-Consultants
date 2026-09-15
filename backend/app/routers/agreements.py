@@ -12,6 +12,8 @@ from app.core.crypto import decrypt_field
 
 router = APIRouter(prefix="/api/v1/agreements", tags=["agreements"])
 
+STAFF_ROLES = ("administrator", "admin", "owner", "underwriter", "collections_agent", "compliance_officer")
+
 
 class SignAgreementRequest(BaseModel):
     loan_id: str
@@ -30,7 +32,7 @@ async def get_agreement(
     if not loan:
         raise HTTPException(status_code=404, detail="Loan not found")
 
-    if current_user.role == "customer":
+    if current_user.role not in STAFF_ROLES:
         cust_stmt = select(Customer.id).where(Customer.user_id == current_user.id)
         cust_id = (await db.execute(cust_stmt)).scalar_one_or_none()
         if loan.customer_id != cust_id:
@@ -64,7 +66,7 @@ async def sign_agreement(
     if not loan:
         raise HTTPException(status_code=404, detail="Loan not found")
 
-    if current_user.role == "customer":
+    if current_user.role not in STAFF_ROLES:
         cust_stmt = select(Customer.id).where(Customer.user_id == current_user.id)
         cust_id = (await db.execute(cust_stmt)).scalar_one_or_none()
         if loan.customer_id != cust_id:

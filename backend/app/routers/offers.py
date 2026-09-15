@@ -13,6 +13,8 @@ from app.services.audit_service import AuditService
 
 router = APIRouter(prefix="/api/v1/offers", tags=["offers"])
 
+STAFF_ROLES = ("administrator", "admin", "owner", "underwriter", "collections_agent", "compliance_officer")
+
 
 @router.get("/{id}")
 async def get_offer(
@@ -25,7 +27,7 @@ async def get_offer(
     if not offer:
         raise HTTPException(status_code=404, detail="Offer not found")
 
-    if current_user.role == "customer":
+    if current_user.role not in STAFF_ROLES:
         cust_stmt = select(Customer.id).where(Customer.user_id == current_user.id)
         cust_id = (await db.execute(cust_stmt)).scalar_one_or_none()
         if offer.customer_id != cust_id:
@@ -67,7 +69,7 @@ async def accept_offer(
     if not offer:
         raise HTTPException(status_code=404, detail="Offer not found")
 
-    if current_user.role == "customer":
+    if current_user.role not in STAFF_ROLES:
         cust_stmt = select(Customer.id).where(Customer.user_id == current_user.id)
         cust_id = (await db.execute(cust_stmt)).scalar_one_or_none()
         if offer.customer_id != cust_id:

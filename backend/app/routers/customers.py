@@ -23,8 +23,9 @@ async def get_customer_profile(
     if not cust:
         raise HTTPException(status_code=404, detail="Customer not found")
 
-    # Enforce access control: customer can only view their own profile unless user is staff
-    if current_user.role == "customer" and cust.user_id != current_user.id:
+    # Enforce access control: customer/client can only view their own profile unless user is staff
+    staff_roles = ("administrator", "admin", "owner", "underwriter", "collections_agent", "compliance_officer")
+    if current_user.role not in staff_roles and cust.user_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to this customer profile")
 
     full_name = decrypt_field(cust.encrypted_full_name) if cust.encrypted_full_name else "Customer"

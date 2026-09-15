@@ -9,12 +9,35 @@ export default function AdminDashboard({ onLogout }) {
   const [auditLogsList, setAuditLogsList] = useState([]);
   const [productsList, setProductsList] = useState([]);
   const [settingsList, setSettingsList] = useState([]);
+  const [usersList, setUsersList] = useState([]);
 
   // Product edit form state
   const [editingProduct, setEditingProduct] = useState(null);
   const [prodForm, setProdForm] = useState({
     code: "", name: "", min_amount: 100, max_amount: 50000, interest_rate_bp: 1500, admin_fee: 50, max_dti_pct: 50
   });
+
+  // User management form state
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [userForm, setUserForm] = useState({
+    email: "", password: "", role: "administrator", full_name: "", is_active: true
+  });
+  const [userFormError, setUserFormError] = useState("");
+
+  const fetchUsers = async () => {
+    const token = localStorage.getItem("sparkle_token");
+    const headers = { Authorization: `Bearer ${token}` };
+    try {
+      const res = await fetch("/api/v1/admin/users", { headers });
+      if (res.ok) {
+        const data = await res.json();
+        setUsersList(data);
+      }
+    } catch (e) {
+      console.error("Error fetching users:", e);
+    }
+  };
 
   useEffect(() => {
     const token = localStorage.getItem("sparkle_token");
@@ -27,6 +50,7 @@ export default function AdminDashboard({ onLogout }) {
     fetch("/api/v1/admin/audit-logs", { headers }).then(res => res.json()).then(setAuditLogsList).catch(console.error);
     fetch("/api/v1/products/admin/all", { headers }).then(res => res.json()).then(data => { if (Array.isArray(data)) setProductsList(data); }).catch(console.error);
     fetch("/api/v1/admin/settings", { headers }).then(res => res.json()).then(data => { if (Array.isArray(data)) setSettingsList(data); }).catch(console.error);
+    fetchUsers();
   }, []);
 
   const handleExportReport = (format) => {
@@ -62,8 +86,73 @@ export default function AdminDashboard({ onLogout }) {
     }
   };
 
+  const handleSaveUser = async (e) => {
+    e.preventDefault();
+    setUserFormError("");
+    const token = localStorage.getItem("sparkle_token");
+    const headers = { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
+
+    try {
+      if (editingUser?.id) {
+        const res = await fetch(`/api/v1/admin/users/${editingUser.id}`, {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({
+            full_name: userForm.full_name,
+            role: userForm.role,
+            is_active: userForm.is_active,
+            password: userForm.password ? userForm.password : undefined
+          })
+        });
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.detail || "Failed to update user");
+        }
+      } else {
+        const res = await fetch("/api/v1/admin/users", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            email: userForm.email,
+            password: userForm.password,
+            role: userForm.role,
+            full_name: userForm.full_name
+          })
+        });
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.detail || "Failed to create user");
+        }
+      }
+      await fetchUsers();
+      setShowUserModal(false);
+      setEditingUser(null);
+    } catch (err) {
+      setUserFormError(err.message);
+    }
+  };
+
+  const handleDeactivateUser = async (userId, userEmail) => {
+    if (!confirm(`Are you sure you want to deactivate/delete user ${userEmail}?`)) return;
+    const token = localStorage.getItem("sparkle_token");
+    const headers = { Authorization: `Bearer ${token}` };
+
+    try {
+      const res = await fetch(`/api/v1/admin/users/${userId}`, { method: "DELETE", headers });
+      if (!res.ok) {
+        const errData = await res.json();
+        alert(`Error: ${errData.detail}`);
+        return;
+      }
+      await fetchUsers();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const adminModules = [
     { id: "dashboard", label: "📊 Overview & Metrics" },
+    { id: "users", label: "👤 User Management" },
     { id: "customers", label: "👥 Customers & Risk" },
     { id: "applications", label: "📝 Applications" },
     { id: "collections", label: "🚨 Collections & Arrears" },
@@ -122,7 +211,7 @@ export default function AdminDashboard({ onLogout }) {
           <span className="text-xs bg-emerald-100 text-emerald-800 font-bold px-3 py-1 rounded">RBAC Guarded Active</span>
         </header>
 
-        {/* 1. Expanded Dashboard Module */}
+        {/* 1. Overview Dashboard */}
         {activeModule === "dashboard" && (
           <div className="space-y-6">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -169,7 +258,180 @@ export default function AdminDashboard({ onLogout }) {
           </div>
         )}
 
-        {/* 2. Customers Module */}
+        {/* 2. User Management Module */}
+        {activeModule === "users" && (
+          <div className="bg-white p-6 border border-ledger-rule rounded shadow-sm space-y-6 text-xs">
+            <div className="flex justify-between items-center">
+              <div>
+                <h3 className="font-display font-bold text-lg text-kina-deep uppercase">User Management Directory</h3>
+                <p className="text-ledger-ink/60">Create, edit roles, reset passwords, and activate/deactivate platform users.</p>
+              </div>
+              <button
+                onClick={() => {
+                  setEditingUser(null);
+                  setUserForm({ email: "", password: "", role: "administrator", full_name: "", is_active: true });
+                  setUserFormError("");
+                  setShowUserModal(true);
+                }}
+                className="px-4 py-2 bg-kina-gold text-kina-deep font-display font-bold uppercase rounded shadow hover:bg-yellow-400"
+              >
+                + Create User
+              </button>
+            </div>
+
+            {/* Modal for User Create/Edit */}
+            {showUserModal && (
+              <div className="p-4 bg-ledger-paper border border-ledger-rule rounded space-y-3">
+                <h4 className="font-bold text-kina-deep uppercase">{editingUser ? "Edit User Account" : "Create New User"}</h4>
+                {userFormError && <div className="p-2 bg-red-100 text-red-800 rounded font-bold">⚠️ {userFormError}</div>}
+
+                <form onSubmit={handleSaveUser} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold">Email Address</label>
+                    <input
+                      type="email"
+                      required
+                      disabled={!!editingUser}
+                      value={userForm.email}
+                      onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
+                      className="w-full p-2 border rounded bg-white disabled:bg-gray-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold">Full Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={userForm.full_name}
+                      onChange={(e) => setUserForm({ ...userForm, full_name: e.target.value })}
+                      className="w-full p-2 border rounded bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold">User Role</label>
+                    <select
+                      value={userForm.role}
+                      onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
+                      className="w-full p-2 border rounded bg-white"
+                    >
+                      <option value="administrator">Administrator (Full Access)</option>
+                      <option value="customer">Customer (Active Borrower)</option>
+                      <option value="client">Client (Applicant / Lead)</option>
+                      <option value="underwriter">Underwriter</option>
+                      <option value="collections_agent">Collections Agent</option>
+                      <option value="compliance_officer">Compliance Officer</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-semibold">{editingUser ? "New Password (Optional)" : "Password"}</label>
+                    <input
+                      type="password"
+                      required={!editingUser}
+                      value={userForm.password}
+                      onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
+                      className="w-full p-2 border rounded bg-white"
+                      placeholder={editingUser ? "Leave blank to keep existing" : "••••••••"}
+                    />
+                  </div>
+                  {editingUser && (
+                    <div className="sm:col-span-2 flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="is_active_chk"
+                        checked={userForm.is_active}
+                        onChange={(e) => setUserForm({ ...userForm, is_active: e.target.checked })}
+                      />
+                      <label htmlFor="is_active_chk" className="font-semibold">Account Active</label>
+                    </div>
+                  )}
+                  <div className="sm:col-span-2 flex justify-end space-x-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowUserModal(false)}
+                      className="px-4 py-2 border rounded font-semibold"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-kina-deep text-ledger-paper font-bold uppercase rounded"
+                    >
+                      {editingUser ? "Update User" : "Create User"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-ledger-rule font-display uppercase text-ledger-ink/60">
+                    <th className="py-2">Full Name</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Created At</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-ledger-rule/20">
+                  {usersList.map((u) => (
+                    <tr key={u.id}>
+                      <td className="py-2.5 font-bold">{u.full_name}</td>
+                      <td>{u.email}</td>
+                      <td>
+                        <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${
+                          u.role === 'administrator' || u.role === 'owner' ? 'bg-purple-100 text-purple-800' :
+                          u.role === 'customer' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {u.role}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          u.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                        }`}>
+                          {u.is_active ? "Active" : "Deactivated"}
+                        </span>
+                      </td>
+                      <td className="text-ledger-ink/60">{new Date(u.created_at).toLocaleDateString()}</td>
+                      <td className="space-x-2">
+                        <button
+                          onClick={() => {
+                            setEditingUser(u);
+                            setUserForm({
+                              email: u.email,
+                              password: "",
+                              role: u.role,
+                              full_name: u.full_name,
+                              is_active: u.is_active
+                            });
+                            setUserFormError("");
+                            setShowUserModal(true);
+                          }}
+                          className="px-2 py-0.5 border border-kina-deep text-kina-deep rounded font-bold text-[10px]"
+                        >
+                          Edit
+                        </button>
+                        {u.is_active && (
+                          <button
+                            onClick={() => handleDeactivateUser(u.id, u.email)}
+                            className="px-2 py-0.5 border border-red-600 text-red-600 rounded font-bold text-[10px]"
+                          >
+                            Deactivate
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* 3. Customers Module */}
         {activeModule === "customers" && (
           <div className="bg-white p-6 border border-ledger-rule rounded shadow-sm space-y-4 text-xs">
             <h3 className="font-display font-bold text-lg text-kina-deep uppercase">Customer Directory & Risk Flags</h3>
@@ -196,7 +458,7 @@ export default function AdminDashboard({ onLogout }) {
           </div>
         )}
 
-        {/* 3. Editable Loan Products */}
+        {/* 4. Editable Loan Products */}
         {activeModule === "products" && (
           <div className="bg-white p-6 border border-ledger-rule rounded shadow-sm space-y-6 text-xs">
             <div className="flex justify-between items-center">
@@ -276,7 +538,7 @@ export default function AdminDashboard({ onLogout }) {
           </div>
         )}
 
-        {/* 4. Portfolio Reports Export */}
+        {/* 5. Portfolio Reports Export */}
         {activeModule === "reports" && (
           <div className="bg-white p-6 border border-ledger-rule rounded shadow-sm space-y-4 text-xs">
             <h3 className="font-display font-bold text-lg text-kina-deep uppercase">Portfolio Reports & Statement Exports</h3>
@@ -295,7 +557,7 @@ export default function AdminDashboard({ onLogout }) {
           </div>
         )}
 
-        {/* 5. Compliance & Audit Module */}
+        {/* 6. Compliance & Audit Module */}
         {activeModule === "compliance" && (
           <div className="bg-white p-6 border border-ledger-rule rounded shadow-sm space-y-4 text-xs">
             <h3 className="font-display font-bold text-lg text-kina-deep uppercase">Immutable Audit Trail</h3>

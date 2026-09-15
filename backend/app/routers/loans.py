@@ -15,6 +15,8 @@ from app.services.payslip_parser import PayslipExtract, check_deduction_ceiling
 
 router = APIRouter(prefix="/api/v1/loans", tags=["loans"])
 
+STAFF_ROLES = ("administrator", "admin", "owner", "underwriter", "collections_agent", "compliance_officer")
+
 
 class LoanCreate(BaseModel):
     customer_id: str
@@ -63,7 +65,7 @@ async def list_loans(
 ):
     stmt = select(Loan).options(joinedload(Loan.customer))
 
-    if current_user.role == "customer":
+    if current_user.role not in STAFF_ROLES:
         cust_stmt = select(Customer.id).where(Customer.user_id == current_user.id)
         cust_id = (await db.execute(cust_stmt)).scalar_one_or_none()
         if not cust_id:
@@ -110,11 +112,11 @@ async def get_loan(
     if not loan:
         raise HTTPException(status_code=404, detail="Loan not found")
 
-    if current_user.role == "customer":
+    if current_user.role not in STAFF_ROLES:
         cust_stmt = select(Customer.id).where(Customer.user_id == current_user.id)
         cust_id = (await db.execute(cust_stmt)).scalar_one_or_none()
         if loan.customer_id != cust_id:
-            raise HTTPException(status_code=403, detail="Access denied to this loan record")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to this loan record")
 
     c = loan.customer
     customer_name = decrypt_field(c.encrypted_full_name) if c and c.encrypted_full_name else "Customer"
@@ -148,11 +150,11 @@ async def record_repayment(
     if not loan:
         raise HTTPException(status_code=404, detail="Loan not found")
 
-    if current_user.role == "customer":
+    if current_user.role not in STAFF_ROLES:
         cust_stmt = select(Customer.id).where(Customer.user_id == current_user.id)
         cust_id = (await db.execute(cust_stmt)).scalar_one_or_none()
         if loan.customer_id != cust_id:
-            raise HTTPException(status_code=403, detail="Access denied")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
     new_balance = float(loan.outstanding_balance) - body.amount
     if new_balance < 0:

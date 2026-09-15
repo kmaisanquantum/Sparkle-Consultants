@@ -14,6 +14,8 @@ from app.services.audit_service import AuditService
 
 router = APIRouter(prefix="/api/v1/applications", tags=["applications"])
 
+STAFF_ROLES = ("administrator", "admin", "owner", "underwriter", "collections_agent", "compliance_officer")
+
 
 class ApplicationDraftCreate(BaseModel):
     loan_product_id: Optional[str] = None
@@ -105,7 +107,7 @@ async def get_application(
     if not app_obj:
         raise HTTPException(status_code=404, detail="Loan application not found")
 
-    if current_user.role == "customer":
+    if current_user.role not in STAFF_ROLES:
         cust_stmt = select(Customer.id).where(Customer.user_id == current_user.id)
         cust_id = (await db.execute(cust_stmt)).scalar_one_or_none()
         if app_obj.customer_id != cust_id:
@@ -136,7 +138,7 @@ async def submit_application(
     if not app_obj:
         raise HTTPException(status_code=404, detail="Loan application not found")
 
-    if current_user.role == "customer":
+    if current_user.role not in STAFF_ROLES:
         cust_stmt = select(Customer.id).where(Customer.user_id == current_user.id)
         cust_id = (await db.execute(cust_stmt)).scalar_one_or_none()
         if app_obj.customer_id != cust_id:
