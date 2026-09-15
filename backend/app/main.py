@@ -9,6 +9,7 @@ import logging
 import traceback
 from app.core.config import settings
 from app.core.database import engine, Base
+from app.core.migration import self_heal_schema
 from app.routers import (
     credit_check, payslip, sync, dashboard, auth, borrowers, loans, collateral,
     calculator, applications, offers, agreements, payments, products, customers, admin, reports
@@ -64,9 +65,16 @@ async def startup_event():
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-        logger.info("Database schema verified and self-healed successfully.")
+        logger.info("Database base tables verified successfully.")
     except Exception as e:
-        logger.error("Error self-healing schema on startup:")
+        logger.error("Error creating base tables on startup:")
+        logger.error(traceback.format_exc())
+
+    try:
+        await self_heal_schema(engine)
+        logger.info("Database schema self-heal migration completed successfully.")
+    except Exception as e:
+        logger.error("Error running schema self-heal migration on startup:")
         logger.error(traceback.format_exc())
 
     try:
