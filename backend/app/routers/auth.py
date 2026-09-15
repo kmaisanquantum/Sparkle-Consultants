@@ -323,7 +323,7 @@ async def forgot_password(
     )
     await db.commit()
 
-    return {"message": "Password reset token generated successfully", "reset_token": reset_token}
+    return {"message": "If an account with that email exists, password reset instructions have been sent."}
 
 
 @router.post("/reset-password")
