@@ -1,0 +1,11 @@
+{
+  "name": "sparkle-consultants",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": "20.x"
+  },
+  "scripts": {
+    "build": "echo root build handled by nixpacks.toml phases"
+  }
+}
