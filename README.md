@@ -69,5 +69,36 @@ npm run dev
 
 The application deploys as a **SINGLE service** on port 8000, bundling the built React frontend directly into the Python backend container (serving the SPA via FastAPI).
 
-1. Set required environment variables: `DATABASE_URL`, `HASH_PEPPER`, `FIELD_ENCRYPTION_KEY`, `JWT_SECRET`, `SEED_ADMIN_PASSWORD`.
-2. Access the single-container instance on port 8000.
+### Domain Configuration (`sparcons.com` vs `www.sparcons.com`)
+
+To ensure both apex (`sparcons.com`) and www (`www.sparcons.com`) resolve properly with automatic Let's Encrypt SSL certificates under Coolify:
+
+1. **DNS Settings (Domain Registrar / Cloudflare):**
+   - **A Record:** `sparcons.com` -> IP address of your VPS/Coolify server.
+   - **CNAME Record:** `www.sparcons.com` -> `sparcons.com` (or A record pointing to the same server IP).
+
+2. **Coolify FQDN Settings:**
+   - In your service configuration under **Domains / FQDN**, set the value as comma-separated URLs:
+     `https://sparcons.com, https://www.sparcons.com`
+   - Coolify / Traefik will automatically generate and renew SSL certificates for both domains.
+
+### Required Environment Variables
+
+Set the following environment variables in your deployment environment (Coolify / Docker):
+
+| Variable | Description | Example / Note |
+| --- | --- | --- |
+| `DATABASE_URL` | Async PostgreSQL connection string | `postgresql+asyncpg://wantok:secret@postgres:5432/wantok_lender` |
+| `SEED_ADMIN_PASSWORD` | Initial password for `admin@dspng.tech` | `kilomike@2024` (Change after first login) |
+| `HASH_PEPPER` | Secret pepper string for phone & NID hashing | Secret 32+ character random string |
+| `FIELD_ENCRYPTION_KEY` | 32-byte AES-GCM encryption key | URL-safe base64 key or 32-byte secret |
+| `JWT_SECRET` | Secret key for signing JWT tokens | High-entropy secret string |
+| `CORS_ALLOWED_ORIGINS` | Allowed CORS origins list (JSON string or comma-separated) | `["https://sparcons.com", "https://www.sparcons.com"]` |
+| `BSP_MERCHANT_ID` | BSP payment gateway merchant ID | Optional / Sandbox default supplied |
+| `BSP_API_KEY` | BSP payment gateway secret key | Optional |
+| `SMTP_HOST` | SMTP server host for email notifications | Optional (e.g. `smtp.sendgrid.net`) |
+| `SMTP_PORT` | SMTP server port | `587` |
+| `SMTP_USER` | SMTP username | Optional |
+| `SMTP_PASSWORD` | SMTP password | Optional |
+
+3. Deploy the single-container instance on port 8000.
