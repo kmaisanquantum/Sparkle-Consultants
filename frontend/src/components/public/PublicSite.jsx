@@ -407,7 +407,7 @@ export default function PublicSite({ onLoginSuccess, onNavigateToApply }) {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="e.g. owner@sparkleconsultants.com"
+                  placeholder="you@example.com"
                   className="w-full p-2 text-sm border border-ledger-rule rounded bg-ledger-paper/50"
                 />
               </div>
@@ -447,10 +447,6 @@ export default function PublicSite({ onLoginSuccess, onNavigateToApply }) {
                 {loginLoading ? "Authenticating..." : "Sign In"}
               </button>
             </form>
-
-            <div className="pt-4 border-t border-ledger-rule text-center text-xs text-ledger-ink/60">
-              Seed Owner Credentials: <code className="bg-ledger-paper px-1 py-0.5 rounded">owner@sparkleconsultants.com</code> / <code className="bg-ledger-paper px-1 py-0.5 rounded">password123</code>
-            </div>
           </div>
         )}
       </main>

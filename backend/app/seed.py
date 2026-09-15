@@ -1,8 +1,11 @@
 import uuid
+import secrets
+import string
 from datetime import datetime, timedelta, timezone, date
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.crypto import hash_password, encrypt_field, hash_phone
 from app.models.orm import (
@@ -14,14 +17,23 @@ from app.models.orm import (
 
 async def seed_data():
     async with AsyncSessionLocal() as db:
-        seed_email = "owner@sparkleconsultants.com"
-        stmt = select(User).where(User.email == seed_email)
+        admin_email = "admin@dspng.tech"
+        stmt = select(User).where(User.email == admin_email)
         result = await db.execute(stmt)
-        existing_user = result.scalar_one_or_none()
+        existing_admin = result.scalar_one_or_none()
 
-        if existing_user:
-            print("Seed owner user already exists. Updating password...")
-            existing_user.password_hash = hash_password("password123")
+        # Determine admin password from env var or generate secure random password
+        admin_password = settings.seed_admin_password
+        if not admin_password:
+            alphabet = string.ascii_letters + string.digits
+            admin_password = "".join(secrets.choice(alphabet) for _ in range(16))
+            print(f"[SECURITY NOTICE] SEED_ADMIN_PASSWORD environment variable not set.")
+            print(f"[SECURITY NOTICE] Generated initial administrator password for {admin_email}: {admin_password}")
+
+        if existing_admin:
+            print(f"Seed administrator user '{admin_email}' already exists. Updating password hash...")
+            existing_admin.password_hash = hash_password(admin_password)
+            existing_admin.role = "administrator"
             await db.commit()
             return
 
@@ -35,25 +47,24 @@ async def seed_data():
             registration_number="REG-PNG-2024-SPARKLE",
             province="National Capital District",
             contact_phone="+675 321 0000",
-            contact_email=seed_email,
-            password_hash=hash_password("password123"),
+            contact_email="info@sparkleconsultants.com",
             is_active=True,
             max_interest_rate_bp=3000,
         )
         db.add(tenant)
 
-        # 2. Create Owner User
-        owner_user_id = uuid.uuid4()
-        owner_user = User(
-            id=owner_user_id,
+        # 2. Create Platform Administrator
+        admin_user_id = uuid.uuid4()
+        admin_user = User(
+            id=admin_user_id,
             tenant_id=tenant_id,
-            email=seed_email,
-            password_hash=hash_password("password123"),
-            role="owner",
-            full_name="Sparkle Platform Owner",
+            email=admin_email,
+            password_hash=hash_password(admin_password),
+            role="administrator",
+            full_name="Platform Administrator",
             is_active=True,
         )
-        db.add(owner_user)
+        db.add(admin_user)
 
         # 3. Create System Settings
         settings_seed = [
@@ -360,7 +371,7 @@ async def seed_data():
 
         # Seed Audit Logs
         db.add(AuditLog(
-            user_id=owner_user_id,
+            user_id=admin_user_id,
             action="SYSTEM_INIT",
             entity_type="SYSTEM",
             entity_id="SPARKLE_SYSTEM",

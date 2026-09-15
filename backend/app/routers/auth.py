@@ -97,7 +97,8 @@ async def get_current_user(authorization: str = Header(...), db: AsyncSession = 
 
 def require_roles(*allowed_roles: str):
     async def role_checker(current_user: User = Depends(get_current_user)) -> User:
-        if current_user.role not in allowed_roles:
+        # Treats "administrator" or "owner" as super-roles if "administrator" or "admin" is in allowed_roles
+        if current_user.role not in allowed_roles and current_user.role not in ("administrator", "owner"):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"User role '{current_user.role}' is not authorized to access this resource"
@@ -119,7 +120,7 @@ async def register_customer(
     if not tenant:
         tenant = Tenant(
             business_name="Sparkle Consultants",
-            contact_email="owner@sparkleconsultants.com",
+            contact_email="info@sparkleconsultants.com",
             is_active=True
         )
         db.add(tenant)
@@ -134,12 +135,12 @@ async def register_customer(
             detail="An account with this email address already exists.",
         )
 
-    # 1. Create User
+    # 1. Create User with role "client" (default for new self-registrations / prospective leads before active loan conversion)
     user = User(
         tenant_id=tenant.id,
         email=body.email.lower().strip(),
         password_hash=hash_password(body.password),
-        role="customer",
+        role="client",
         full_name=body.full_name,
         is_active=True,
     )
@@ -169,7 +170,7 @@ async def register_customer(
         user_id=user.id,
         customer_id=customer.id,
         title="Welcome to Sparkle Consultants",
-        message=f"Welcome {body.full_name}! Your account has been registered successfully.",
+        message=f"Welcome {body.full_name}! Your client account has been registered successfully.",
         channel="in_app"
     ))
 
@@ -180,7 +181,7 @@ async def register_customer(
         entity_id=str(user.id),
         user_id=str(user.id),
         customer_id=str(customer.id),
-        payload={"email": body.email, "full_name": body.full_name}
+        payload={"email": body.email, "full_name": body.full_name, "role": "client"}
     )
 
     await db.commit()

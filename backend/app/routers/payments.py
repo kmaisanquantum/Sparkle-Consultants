@@ -12,6 +12,8 @@ from app.services.payments.payment_service import PaymentService
 
 router = APIRouter(prefix="/api/v1/payments", tags=["payments"])
 
+STAFF_ROLES = ("administrator", "admin", "owner", "underwriter", "collections_agent", "compliance_officer")
+
 
 class InitiatePaymentRequest(BaseModel):
     customer_id: str
@@ -27,7 +29,7 @@ async def initiate_payment(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role == "customer":
+    if current_user.role not in STAFF_ROLES:
         cust_stmt = select(Customer.id).where(Customer.user_id == current_user.id)
         cust_id = (await db.execute(cust_stmt)).scalar_one_or_none()
         if str(cust_id) != body.customer_id:
@@ -68,7 +70,7 @@ async def bsp_webhook_callback(
 @router.get("/reconciliations")
 async def list_reconciliations(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles("owner", "admin", "underwriter", "compliance_officer"))
+    current_user: User = Depends(require_roles("administrator", "owner", "admin", "underwriter", "compliance_officer"))
 ):
     stmt = select(PaymentReconciliation).limit(50)
     res = await db.execute(stmt)

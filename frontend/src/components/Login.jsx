@@ -48,7 +48,7 @@ export default function Login({ onLoginSuccess }) {
                 htmlFor="email"
                 className="block text-xs font-display uppercase tracking-wider text-ledger-ink/75 font-medium"
               >
-                Tenant Email Address
+                Email Address
               </label>
               <div className="mt-1">
                 <input
@@ -59,7 +59,7 @@ export default function Login({ onLoginSuccess }) {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="e.g. owner@sparkleconsultants.com"
+                  placeholder="you@example.com"
                   className="appearance-none block w-full px-3 py-2 border border-ledger-rule rounded-sm shadow-sm placeholder-ledger-ink/30 focus:outline-none focus:ring-bilum-teal focus:border-bilum-teal sm:text-sm bg-ledger-paper/50"
                 />
               </div>
@@ -93,16 +93,10 @@ export default function Login({ onLoginSuccess }) {
                 disabled={loading}
                 className="w-full flex justify-center py-2 px-4 border border-transparent rounded-sm shadow-sm text-sm font-display uppercase tracking-wider font-semibold text-ledger-paper bg-kina-deep hover:bg-kina-deep/95 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-kina-gold disabled:opacity-50"
               >
-                {loading ? "Verifying Ledger..." : "Log In to Ledger"}
+                {loading ? "Authenticating..." : "Log In"}
               </button>
             </div>
           </form>
-
-          <div className="mt-6 border-t border-ledger-rule pt-4 text-center">
-            <span className="text-xs text-ledger-ink/50">
-              Seed login: <code className="bg-ledger-paper px-1 py-0.5 rounded">owner@sparkleconsultants.com</code> / <code className="bg-ledger-paper px-1 py-0.5 rounded">password123</code>
-            </span>
-          </div>
         </div>
       </div>
     </div>

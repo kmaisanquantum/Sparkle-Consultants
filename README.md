@@ -15,6 +15,12 @@ frontend/              React + Tailwind borrower portal & admin console
 docker-compose.yml     Coolify-ready multi-service deploy
 ```
 
+## Seeding & Administrator Account Setup
+
+On startup, the system seeds the initial platform administrator:
+- **Admin Email**: `admin@dspng.tech`
+- **Password**: Configured via the `SEED_ADMIN_PASSWORD` environment variable. If `SEED_ADMIN_PASSWORD` is not set, the seeder automatically generates a secure 16-character random password and logs it to stdout.
+
 ## Production Reliability, Monitoring & Disaster Recovery
 
 ### Database Backup & Disaster Recovery Procedures
@@ -47,7 +53,7 @@ cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env   # fill in real secrets
-PYTHONPATH=. uvicorn app.main:app --reload
+SEED_ADMIN_PASSWORD=your_secure_password PYTHONPATH=. uvicorn app.main:app --reload
 
 # Run Pytest
 PYTHONPATH=backend python3 -m pytest
@@ -62,5 +68,5 @@ npm run dev
 
 The application deploys as a **SINGLE service** on port 8000, bundling the built React frontend directly into the Python backend container (serving the SPA via FastAPI).
 
-1. Set required environment variables: `DATABASE_URL`, `HASH_PEPPER`, `FIELD_ENCRYPTION_KEY`, `JWT_SECRET`.
+1. Set required environment variables: `DATABASE_URL`, `HASH_PEPPER`, `FIELD_ENCRYPTION_KEY`, `JWT_SECRET`, `SEED_ADMIN_PASSWORD`.
 2. Access the single-container instance on port 8000.

@@ -57,9 +57,11 @@ export default function App() {
     );
   }
 
-  // Render surface based on auth role
+  // Render surface based on auth role:
+  // - Administrator & Staff roles (administrator, admin, owner, underwriter, collections_agent, compliance_officer) -> AdminDashboard
+  // - Customer & Client roles (customer, client) -> CustomerPortal
   if (token && userRole) {
-    if (["owner", "admin", "underwriter", "collections_agent", "compliance_officer"].includes(userRole)) {
+    if (["administrator", "admin", "owner", "underwriter", "collections_agent", "compliance_officer"].includes(userRole)) {
       return <AdminDashboard onLogout={handleLogout} />;
     }
     return <CustomerPortal onLogout={handleLogout} />;
