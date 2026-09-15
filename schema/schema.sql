@@ -13,6 +13,13 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- IMMUTABILITY TRIGGERS
+CREATE OR REPLACE FUNCTION prevent_modification_or_deletion() RETURNS TRIGGER AS $$
+BEGIN
+    RAISE EXCEPTION 'Immutability Violation: Rows in % cannot be updated or deleted.', TG_TABLE_NAME;
+END;
+$$ LANGUAGE plpgsql;
+
 -- TENANTS (Single business entity: Sparkle Consultants)
 CREATE TABLE IF NOT EXISTS tenants (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -263,6 +270,12 @@ CREATE TABLE IF NOT EXISTS transactions (
     UNIQUE (tenant_id, client_generated_id)
 );
 
+-- Attach Immutability Triggers to Transactions
+DROP TRIGGER IF EXISTS trg_immutable_transactions ON transactions;
+CREATE TRIGGER trg_immutable_transactions
+BEFORE UPDATE OR DELETE ON transactions
+FOR EACH ROW EXECUTE FUNCTION prevent_modification_or_deletion();
+
 -- PAYMENTS
 CREATE TABLE IF NOT EXISTS payments (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -408,6 +421,12 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     ip_address          TEXT,
     timestamp           TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Attach Immutability Triggers to Audit Logs
+DROP TRIGGER IF EXISTS trg_immutable_audit_logs ON audit_logs;
+CREATE TRIGGER trg_immutable_audit_logs
+BEFORE UPDATE OR DELETE ON audit_logs
+FOR EACH ROW EXECUTE FUNCTION prevent_modification_or_deletion();
 
 -- SYSTEM SETTINGS
 CREATE TABLE IF NOT EXISTS system_settings (

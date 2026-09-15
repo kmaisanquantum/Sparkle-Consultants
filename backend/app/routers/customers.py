@@ -1,22 +1,31 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import uuid
 
 from app.core.database import get_db
-from app.models.orm import Customer, CustomerProfile, EmploymentRecord, IncomeRecord, BankAccount, KYCRecord, RiskProfile
+from app.routers.auth import get_current_user
+from app.models.orm import Customer, CustomerProfile, EmploymentRecord, IncomeRecord, BankAccount, KYCRecord, RiskProfile, User
 from app.core.crypto import decrypt_field
 
 router = APIRouter(prefix="/api/v1/customers", tags=["customers"])
 
 
 @router.get("/profile/{customer_id}")
-async def get_customer_profile(customer_id: str, db: AsyncSession = Depends(get_db)):
+async def get_customer_profile(
+    customer_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     cust_stmt = select(Customer).where(Customer.id == uuid.UUID(customer_id))
     cust = (await db.execute(cust_stmt)).scalar_one_or_none()
     if not cust:
         raise HTTPException(status_code=404, detail="Customer not found")
+
+    # Enforce access control: customer can only view their own profile unless user is staff
+    if current_user.role == "customer" and cust.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to this customer profile")
 
     full_name = decrypt_field(cust.encrypted_full_name) if cust.encrypted_full_name else "Customer"
     address = decrypt_field(cust.encrypted_address) if cust.encrypted_address else ""

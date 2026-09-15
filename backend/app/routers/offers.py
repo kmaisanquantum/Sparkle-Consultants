@@ -5,7 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import uuid
 
 from app.core.database import get_db
-from app.models.orm import LoanOffer, LoanApplication, Loan, LoanSchedule, Transaction, Customer
+from app.models.orm import LoanOffer, LoanApplication, Loan, LoanSchedule, Transaction, Customer, User
+from app.routers.auth import get_current_user, require_roles
 from app.services.agreement_service import AgreementService
 from app.services.calculation_engine import CalculationEngine
 from app.services.audit_service import AuditService
@@ -14,11 +15,21 @@ router = APIRouter(prefix="/api/v1/offers", tags=["offers"])
 
 
 @router.get("/{id}")
-async def get_offer(id: str, db: AsyncSession = Depends(get_db)):
+async def get_offer(
+    id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     stmt = select(LoanOffer).where(LoanOffer.id == uuid.UUID(id))
     offer = (await db.execute(stmt)).scalar_one_or_none()
     if not offer:
         raise HTTPException(status_code=404, detail="Offer not found")
+
+    if current_user.role == "customer":
+        cust_stmt = select(Customer.id).where(Customer.user_id == current_user.id)
+        cust_id = (await db.execute(cust_stmt)).scalar_one_or_none()
+        if offer.customer_id != cust_id:
+            raise HTTPException(status_code=403, detail="Access denied")
 
     calc = CalculationEngine.calculate_loan_summary(
         principal_amount=float(offer.approved_amount),
@@ -46,11 +57,21 @@ async def get_offer(id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/{id}/accept")
-async def accept_offer(id: str, db: AsyncSession = Depends(get_db)):
+async def accept_offer(
+    id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     stmt = select(LoanOffer).where(LoanOffer.id == uuid.UUID(id))
     offer = (await db.execute(stmt)).scalar_one_or_none()
     if not offer:
         raise HTTPException(status_code=404, detail="Offer not found")
+
+    if current_user.role == "customer":
+        cust_stmt = select(Customer.id).where(Customer.user_id == current_user.id)
+        cust_id = (await db.execute(cust_stmt)).scalar_one_or_none()
+        if offer.customer_id != cust_id:
+            raise HTTPException(status_code=403, detail="Access denied")
 
     offer.status = "accepted"
 
