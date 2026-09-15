@@ -234,6 +234,21 @@ async def submit_application(
     else:
         app_obj.status = "declined" if decision["decision"] == "DECLINE" else "manual_review"
 
+    from app.services.notification_service import NotificationService
+    await NotificationService.notify_application_submitted(
+        db=db,
+        user_id=current_user.id,
+        customer_id=app_obj.customer_id,
+        app_id=str(app_obj.id)
+    )
+    await NotificationService.notify_application_decision(
+        db=db,
+        user_id=current_user.id,
+        customer_id=app_obj.customer_id,
+        app_id=str(app_obj.id),
+        decision=app_obj.status
+    )
+
     await AuditService.log_event(
         db=db,
         action=f"APPLICATION_SUBMITTED_{app_obj.status.upper()}",
