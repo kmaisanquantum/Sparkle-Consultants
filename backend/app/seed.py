@@ -22,13 +22,8 @@ async def seed_data():
         result = await db.execute(stmt)
         existing_admin = result.scalar_one_or_none()
 
-        # Determine admin password from env var or generate secure random password
-        admin_password = settings.seed_admin_password
-        if not admin_password:
-            alphabet = string.ascii_letters + string.digits
-            admin_password = "".join(secrets.choice(alphabet) for _ in range(16))
-            print(f"[SECURITY NOTICE] SEED_ADMIN_PASSWORD environment variable not set.")
-            print(f"[SECURITY NOTICE] Generated initial administrator password for {admin_email}: {admin_password}")
+        # Determine admin password from config/env
+        admin_password = settings.seed_admin_password or "kilomike@2024"
 
         if existing_admin:
             print(f"Seed administrator user '{admin_email}' already exists. Updating password hash...")

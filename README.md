@@ -19,7 +19,8 @@ docker-compose.yml     Coolify-ready multi-service deploy
 
 On startup, the system seeds the initial platform administrator:
 - **Admin Email**: `admin@dspng.tech`
-- **Password**: Configured via the `SEED_ADMIN_PASSWORD` environment variable. If `SEED_ADMIN_PASSWORD` is not set, the seeder automatically generates a secure 16-character random password and logs it to stdout.
+- **Default Initial Password**: `kilomike@2024` (Configured via `seed_admin_password` setting, must be changed or overridden in production).
+- **Environment Override**: The `SEED_ADMIN_PASSWORD` environment variable overrides the default initial password.
 
 ## Production Reliability, Monitoring & Disaster Recovery
 
@@ -53,7 +54,7 @@ cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env   # fill in real secrets
-SEED_ADMIN_PASSWORD=your_secure_password PYTHONPATH=. uvicorn app.main:app --reload
+SEED_ADMIN_PASSWORD=kilomike@2024 PYTHONPATH=. uvicorn app.main:app --reload
 
 # Run Pytest
 PYTHONPATH=backend python3 -m pytest

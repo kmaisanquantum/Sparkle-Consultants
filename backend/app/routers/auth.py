@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, status, Header, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Header, Request, Query
 from jose import jwt, JWTError
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import select
@@ -72,12 +72,22 @@ class MFAVerifyRequest(BaseModel):
     secret: Optional[str] = None
 
 
-async def get_current_user(authorization: str = Header(...), db: AsyncSession = Depends(get_db)) -> User:
-    if not authorization.startswith("Bearer "):
+async def get_current_user(
+    authorization: Optional[str] = Header(None),
+    token: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db)
+) -> User:
+    bearer_token = None
+    if authorization and authorization.startswith("Bearer "):
+        bearer_token = authorization.removeprefix("Bearer ").strip()
+    elif token:
+        bearer_token = token
+
+    if not bearer_token:
         raise HTTPException(status_code=401, detail="Missing bearer token")
-    token = authorization.removeprefix("Bearer ").strip()
+
     try:
-        payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        payload = jwt.decode(bearer_token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
@@ -97,7 +107,6 @@ async def get_current_user(authorization: str = Header(...), db: AsyncSession = 
 
 def require_roles(*allowed_roles: str):
     async def role_checker(current_user: User = Depends(get_current_user)) -> User:
-        # Treats "administrator" or "owner" as super-roles if "administrator" or "admin" is in allowed_roles
         if current_user.role not in allowed_roles and current_user.role not in ("administrator", "owner"):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -114,7 +123,6 @@ async def register_customer(
     body: CustomerRegisterRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    # Get or create primary single-business Tenant
     tenant_stmt = select(Tenant).limit(1)
     tenant = (await db.execute(tenant_stmt)).scalar_one_or_none()
     if not tenant:
@@ -126,7 +134,6 @@ async def register_customer(
         db.add(tenant)
         await db.flush()
 
-    # Check if email exists
     stmt = select(User).where(User.email == body.email.lower().strip())
     existing = (await db.execute(stmt)).scalar_one_or_none()
     if existing:
@@ -135,7 +142,6 @@ async def register_customer(
             detail="An account with this email address already exists.",
         )
 
-    # 1. Create User with role "client" (default for new self-registrations / prospective leads before active loan conversion)
     user = User(
         tenant_id=tenant.id,
         email=body.email.lower().strip(),
@@ -147,7 +153,6 @@ async def register_customer(
     db.add(user)
     await db.flush()
 
-    # 2. Create Customer with tenant_id provided
     customer = Customer(
         tenant_id=tenant.id,
         user_id=user.id,
@@ -161,11 +166,9 @@ async def register_customer(
     db.add(customer)
     await db.flush()
 
-    # 3. Create Profile & Risk Profile
     db.add(CustomerProfile(customer_id=customer.id, province=body.province))
     db.add(RiskProfile(customer_id=customer.id, risk_tier="low", risk_score=700, max_approved_limit=10000.00))
 
-    # Welcome Notification
     db.add(Notification(
         user_id=user.id,
         customer_id=customer.id,
@@ -186,7 +189,6 @@ async def register_customer(
 
     await db.commit()
 
-    # Generate JWT with user_id and tenant_id
     expiry = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expiry_minutes)
     payload = {
         "user_id": str(user.id),
@@ -237,7 +239,6 @@ async def login(
             detail="Account is deactivated",
         )
 
-    # Check MFA if enabled
     if user.mfa_enabled:
         if not body.mfa_code:
             raise HTTPException(
@@ -294,7 +295,6 @@ async def forgot_password(
     stmt = select(User).where(User.email == body.email.lower().strip())
     user = (await db.execute(stmt)).scalar_one_or_none()
 
-    # Generic message to prevent email enumeration
     response_msg = {"message": "If an account with that email exists, password reset instructions have been sent."}
     if not user:
         return response_msg
