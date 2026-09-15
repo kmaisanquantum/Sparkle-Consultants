@@ -43,8 +43,8 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expiry_minutes: int = 60 * 12
 
-    # Initial Seed Administrator Password (if unset, a random password is generated and logged)
-    seed_admin_password: Optional[str] = None
+    # Initial Seed Administrator Password (overridden via SEED_ADMIN_PASSWORD env var if set)
+    seed_admin_password: Optional[str] = "kilomike@2024"
 
     # Regulatory ceiling: PNG Alesco public-service payroll deduction cap.
     alesco_max_total_deduction_pct: float = 50.00

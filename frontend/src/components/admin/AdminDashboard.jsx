@@ -25,6 +25,11 @@ export default function AdminDashboard({ onLogout }) {
   });
   const [userFormError, setUserFormError] = useState("");
 
+  // Dedicated Password Reset Modal state
+  const [resetModalUser, setResetModalUser] = useState(null);
+  const [newPasswordVal, setNewPasswordVal] = useState("");
+  const [resetMsg, setResetMsg] = useState("");
+
   const fetchUsers = async () => {
     const token = localStorage.getItem("sparkle_token");
     const headers = { Authorization: `Bearer ${token}` };
@@ -132,8 +137,35 @@ export default function AdminDashboard({ onLogout }) {
     }
   };
 
+  const handleTriggerResetPassword = async (e) => {
+    e.preventDefault();
+    setResetMsg("");
+    const token = localStorage.getItem("sparkle_token");
+    const headers = { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
+
+    try {
+      const res = await fetch(`/api/v1/admin/users/${resetModalUser.id}/reset-password`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ password: newPasswordVal })
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.detail || "Failed to reset password");
+      }
+      setResetMsg("✅ Password reset successfully!");
+      setTimeout(() => {
+        setResetModalUser(null);
+        setNewPasswordVal("");
+        setResetMsg("");
+      }, 1500);
+    } catch (err) {
+      setResetMsg(`⚠️ Error: ${err.message}`);
+    }
+  };
+
   const handleDeactivateUser = async (userId, userEmail) => {
-    if (!confirm(`Are you sure you want to deactivate/delete user ${userEmail}?`)) return;
+    if (!confirm(`Are you sure you want to deactivate or delete user ${userEmail}?`)) return;
     const token = localStorage.getItem("sparkle_token");
     const headers = { Authorization: `Bearer ${token}` };
 
@@ -363,6 +395,43 @@ export default function AdminDashboard({ onLogout }) {
               </div>
             )}
 
+            {/* Modal for Dedicated Password Reset */}
+            {resetModalUser && (
+              <div className="p-4 bg-yellow-50 border border-yellow-300 rounded space-y-3">
+                <h4 className="font-bold text-kina-deep uppercase">🔑 Reset Password for {resetModalUser.email}</h4>
+                {resetMsg && <div className="text-xs font-bold">{resetMsg}</div>}
+
+                <form onSubmit={handleTriggerResetPassword} className="space-y-3 max-w-md">
+                  <div>
+                    <label className="block font-semibold mb-1">New Password</label>
+                    <input
+                      type="password"
+                      required
+                      value={newPasswordVal}
+                      onChange={(e) => setNewPasswordVal(e.target.value)}
+                      placeholder="Enter new password"
+                      className="w-full p-2 border rounded bg-white"
+                    />
+                  </div>
+                  <div className="flex space-x-2">
+                    <button
+                      type="submit"
+                      className="px-4 py-1.5 bg-kina-deep text-ledger-paper font-bold uppercase rounded"
+                    >
+                      Confirm Reset
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setResetModalUser(null)}
+                      className="px-4 py-1.5 border rounded font-semibold"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
@@ -413,6 +482,16 @@ export default function AdminDashboard({ onLogout }) {
                           className="px-2 py-0.5 border border-kina-deep text-kina-deep rounded font-bold text-[10px]"
                         >
                           Edit
+                        </button>
+                        <button
+                          onClick={() => {
+                            setResetModalUser(u);
+                            setNewPasswordVal("");
+                            setResetMsg("");
+                          }}
+                          className="px-2 py-0.5 border border-yellow-600 text-yellow-800 rounded font-bold text-[10px]"
+                        >
+                          Reset Pass
                         </button>
                         {u.is_active && (
                           <button

@@ -1,5 +1,4 @@
 import pytest
-from fastapi import HTTPException
 from app.routers.auth import require_roles
 
 
@@ -8,7 +7,6 @@ def test_user_management_rbac_permissions():
         def __init__(self, role):
             self.role = role
 
-    # Role checker requirement for administrator / admin
     admin_checker = require_roles("administrator", "admin")
 
     administrator_user = DummyUser("administrator")
@@ -17,9 +15,8 @@ def test_user_management_rbac_permissions():
     customer_user = DummyUser("customer")
     client_user = DummyUser("client")
 
-    # Customer and client roles must fail RBAC role check for admin operations
-    assert customer_user.role not in ("administrator", "admin")
-    assert client_user.role not in ("administrator", "admin")
+    assert customer_user.role not in ("administrator", "admin", "owner")
+    assert client_user.role not in ("administrator", "admin", "owner")
 
 
 def test_role_classification_conventions():

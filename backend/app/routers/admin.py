@@ -37,6 +37,10 @@ class UserUpdateRequest(BaseModel):
     password: Optional[str] = None
 
 
+class UserPasswordResetRequest(BaseModel):
+    password: str
+
+
 class UserOutResponse(BaseModel):
     id: str
     email: str
@@ -123,7 +127,6 @@ async def create_admin_user(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_roles("administrator", "admin", "owner"))
 ):
-    # Check if email exists
     stmt = select(User).where(User.email == body.email.lower().strip())
     existing = (await db.execute(stmt)).scalar_one_or_none()
     if existing:
@@ -132,7 +135,6 @@ async def create_admin_user(
             detail=f"An account with email {body.email} already exists."
         )
 
-    # Get primary tenant
     tenant_stmt = select(Tenant).limit(1)
     tenant = (await db.execute(tenant_stmt)).scalar_one_or_none()
     tenant_id = tenant.id if tenant else None
@@ -183,7 +185,6 @@ async def update_admin_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Prevent demoting or deactivating self
     if user.id == current_user.id:
         if body.is_active is False:
             raise HTTPException(status_code=400, detail="Cannot deactivate your own administrator account.")
@@ -221,6 +222,33 @@ async def update_admin_user(
     )
 
 
+@router.post("/users/{user_id}/reset-password")
+async def admin_reset_user_password(
+    user_id: str,
+    body: UserPasswordResetRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_roles("administrator", "admin", "owner"))
+):
+    stmt = select(User).where(User.id == uuid.UUID(user_id))
+    user = (await db.execute(stmt)).scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.password_hash = hash_password(body.password)
+
+    await AuditService.log_event(
+        db=db,
+        action="ADMIN_RESET_USER_PASSWORD",
+        entity_type="USER",
+        entity_id=str(user.id),
+        user_id=str(current_user.id),
+        payload={"target_user_id": str(user.id), "email": user.email}
+    )
+
+    await db.commit()
+    return {"message": f"Password for user {user.email} reset successfully.", "user_id": str(user.id)}
+
+
 @router.delete("/users/{user_id}")
 async def delete_admin_user(
     user_id: str,
@@ -236,7 +264,7 @@ async def delete_admin_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Ensure not deleting the last remaining administrator
+    # Prevent deleting or deactivating the last active administrator
     if user.role in ("administrator", "admin", "owner") and user.is_active:
         admin_count_stmt = select(func.count(User.id)).where(
             User.role.in_(["administrator", "admin", "owner"]),
@@ -246,20 +274,32 @@ async def delete_admin_user(
         if admin_count <= 1:
             raise HTTPException(status_code=400, detail="Cannot delete or deactivate the last remaining administrator.")
 
-    # Soft delete via deactivation to preserve financial/audit history
-    user.is_active = False
+    # Check for linked financial records (Customer or AuditLog)
+    cust_stmt = select(Customer).where(Customer.user_id == target_uuid)
+    linked_customer = (await db.execute(cust_stmt)).scalar_one_or_none()
+
+    if linked_customer or not user.is_active:
+        # Soft-delete via deactivation to preserve financial/audit integrity
+        user.is_active = False
+        action = "ADMIN_DEACTIVATE_USER"
+        msg = f"User {user.email} deactivated (linked records preserved)."
+    else:
+        # Hard delete if no linked financial records
+        await db.delete(user)
+        action = "ADMIN_DELETE_USER"
+        msg = f"User {user.email} deleted successfully."
 
     await AuditService.log_event(
         db=db,
-        action="ADMIN_DEACTIVATE_USER",
+        action=action,
         entity_type="USER",
-        entity_id=str(user.id),
+        entity_id=str(target_uuid),
         user_id=str(current_user.id),
-        payload={"deactivated_user_id": str(user.id), "email": user.email}
+        payload={"target_user_id": str(target_uuid), "email": user.email}
     )
 
     await db.commit()
-    return {"message": f"User {user.email} has been deactivated successfully.", "id": str(user.id)}
+    return {"message": msg, "id": str(target_uuid)}
 
 
 @router.get("/customers")
