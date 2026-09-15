@@ -72,11 +72,10 @@ The application deploys as a **SINGLE service** on port 8000, bundling the built
 ### Option A: Single-Container Application Deploy (Recommended)
 1. In Coolify or your deployment platform, create a **New Resource → Application**.
 2. Point it at this repository with:
-   - **Build Pack**: `Dockerfile` (bypasses Nixpacks completely; Nixpacks should NOT be used).
+   - **Build Pack**: `Nixpacks` (supported via root `nixpacks.toml`) OR `Dockerfile` (preferred single-container build).
    - **Base Directory**: `/` (repo root)
    - **Exposed Port / Ports Exposes**: `8000` (the container listens on 8000, serving both API and React SPA).
 3. **Important Configuration Notes:**
-   - **Coolify UI "Nix Packages" Field:** Clear any "Nix Packages" or custom packages field in Coolify's UI entirely when using the Dockerfile build pack.
    - **Coolify Domains / FQDN Field:** Ensure the domain field contains a single clean URL value like `https://www.sparcons.com` (no semicolons, trailing paths, or duplicate domain entries).
    - **Coolify Managed Postgres URL:** Coolify's internal Postgres URL defaults to `postgres://...`. The app automatically normalizes `postgres://` and `postgresql://` schemes to `postgresql+asyncpg://` at load time so the async SQLAlchemy engine connects seamlessly. Ensure the internal database hostname is reachable on the shared project network.
    - **Redeployment:** Any updates to environment variables in Coolify require clicking **Redeploy**.
