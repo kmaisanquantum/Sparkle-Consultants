@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { login } from "../../lib/api";
 
 export default function PublicSite({ onLoginSuccess, onNavigateToApply }) {
   const [activeTab, setActiveTab] = useState("home");
+  const [products, setProducts] = useState([]);
 
   // Calculator state
   const [calcAmount, setCalcAmount] = useState(2000);
@@ -14,8 +15,19 @@ export default function PublicSite({ onLoginSuccess, onNavigateToApply }) {
   // Login form state
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [mfaCode, setMfaCode] = useState("");
+  const [mfaRequired, setMfaRequired] = useState(false);
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/v1/products")
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) setProducts(data);
+      })
+      .catch((err) => console.error("Error loading products:", err));
+  }, []);
 
   const handleCalculate = async (e) => {
     if (e) e.preventDefault();
@@ -48,10 +60,15 @@ export default function PublicSite({ onLoginSuccess, onNavigateToApply }) {
     setLoginError("");
     setLoginLoading(true);
     try {
-      await login(email, password);
+      await login(email, password, mfaCode);
       onLoginSuccess();
     } catch (err) {
-      setLoginError(err.message || "Invalid credentials.");
+      if (err.message && err.message.includes("MFA code required")) {
+        setMfaRequired(true);
+        setLoginError("MFA code required. Please enter your authenticator token.");
+      } else {
+        setLoginError(err.message || "Invalid credentials.");
+      }
     } finally {
       setLoginLoading(false);
     }
@@ -77,19 +94,18 @@ export default function PublicSite({ onLoginSuccess, onNavigateToApply }) {
           <nav className="hidden md:flex space-x-1 text-xs font-display uppercase tracking-wider font-semibold">
             {[
               { id: "home", label: "Home" },
-              { id: "loans", label: "Loans" },
+              { id: "loans", label: "Products & Rates" },
               { id: "calculator", label: "Calculator" },
-              { id: "how_it_works", label: "How It Works" },
-              { id: "eligibility", label: "Eligibility" },
-              { id: "faqs", label: "FAQs" },
-              { id: "about", label: "About" },
-              { id: "contact", label: "Contact" },
+              { id: "terms", label: "Terms & Conditions" },
+              { id: "privacy", label: "Privacy Policy" },
               { id: "responsible", label: "Responsible Lending" },
+              { id: "complaints", label: "Complaints & Disputes" },
+              { id: "collections", label: "Default & Collections" },
             ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-3 py-2 rounded transition-colors ${
+                className={`px-2.5 py-1.5 rounded transition-colors ${
                   activeTab === tab.id
                     ? "bg-kina-gold text-kina-deep font-bold"
                     : "hover:bg-white/10 text-ledger-paper/90"
@@ -134,7 +150,7 @@ export default function PublicSite({ onLoginSuccess, onNavigateToApply }) {
                   Fast, Transparent, Online Loans for Papua New Guinea
                 </h1>
                 <p className="text-base md:text-lg text-ledger-paper/85 leading-relaxed">
-                  Sparkle Consultants provides 100% online loan applications, automated credit decisioning, and direct BSP payment disbursements across all provinces.
+                  Sparkle Consultants provides 100% online loan applications, automated credit decisioning, and direct BSP payment disbursements across all PNG provinces.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4 pt-4">
                   <button
@@ -150,7 +166,7 @@ export default function PublicSite({ onLoginSuccess, onNavigateToApply }) {
                     onClick={() => setActiveTab("calculator")}
                     className="px-6 py-3 border border-ledger-paper/40 font-display font-bold uppercase tracking-wider rounded hover:bg-white/10 text-center"
                   >
-                    Calculate My Repayment
+                    Calculate Repayment
                   </button>
                 </div>
               </div>
@@ -160,26 +176,68 @@ export default function PublicSite({ onLoginSuccess, onNavigateToApply }) {
             <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-white p-6 border border-ledger-rule rounded shadow-sm">
                 <div className="text-3xl mb-3">⚡</div>
-                <h3 className="font-display text-lg font-bold text-kina-deep uppercase">Instant Decision</h3>
+                <h3 className="font-display text-lg font-bold text-kina-deep uppercase">Instant Credit Assessment</h3>
                 <p className="text-xs text-ledger-ink/70 mt-2">
-                  Our automated decision engine evaluates your application in real-time with no branch queues or physical paperwork.
+                  Automated decisioning evaluates your credit score, fortnightly income, and DTI metrics without physical branch queues.
                 </p>
               </div>
               <div className="bg-white p-6 border border-ledger-rule rounded shadow-sm">
                 <div className="text-3xl mb-3">🏦</div>
                 <h3 className="font-display text-lg font-bold text-kina-deep uppercase">Direct Bank Credit</h3>
                 <p className="text-xs text-ledger-ink/70 mt-2">
-                  Approved funds are disbursed directly to your BSP or PNG commercial bank account.
+                  Approved loan principal is disbursed directly to your BSP or commercial bank account in PGK.
                 </p>
               </div>
               <div className="bg-white p-6 border border-ledger-rule rounded shadow-sm">
                 <div className="text-3xl mb-3">🛡️</div>
-                <h3 className="font-display text-lg font-bold text-kina-deep uppercase">Alesco & DTI Protection</h3>
+                <h3 className="font-display text-lg font-bold text-kina-deep uppercase">Alesco & DTI Consumer Protection</h3>
                 <p className="text-xs text-ledger-ink/70 mt-2">
-                  Public servant deduction ceiling checks and strict debt-to-income limits ensure safe, responsible borrowing.
+                  Public service 50% net pay retention caps and strict debt-to-income limits ensure safe, sustainable micro-borrowing.
                 </p>
               </div>
             </section>
+          </div>
+        )}
+
+        {/* Loan Products & Rates Page */}
+        {activeTab === "loans" && (
+          <div className="bg-white p-6 md:p-8 border border-ledger-rule rounded shadow-sm space-y-6">
+            <h2 className="text-2xl font-display font-bold uppercase text-kina-deep">
+              🏷️ Active Loan Products & Interest Rates
+            </h2>
+            <p className="text-xs text-ledger-ink/70">
+              Live rate card pulled directly from configured system products. All fees and limits are fully transparent.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {products.map((p) => (
+                <div key={p.id} className="border border-ledger-rule p-5 rounded bg-ledger-paper/30 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <h3 className="font-display font-bold text-lg text-kina-deep">{p.name}</h3>
+                    <span className="text-xs font-mono bg-kina-gold/20 text-kina-deep px-2 py-0.5 rounded font-bold">
+                      {p.code}
+                    </span>
+                  </div>
+                  <p className="text-xs text-ledger-ink/80">{p.description || "Standard automated micro-loan product."}</p>
+                  <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-ledger-rule/50">
+                    <div><strong>Min - Max Amount:</strong> PGK {p.min_amount} - PGK {p.max_amount}</div>
+                    <div><strong>Interest Rate:</strong> {(p.interest_rate_bp / 100).toFixed(2)}% per period</div>
+                    <div><strong>Admin Fee:</strong> PGK {p.admin_fee}</div>
+                    <div><strong>Max DTI Cap:</strong> {p.max_dti_pct}%</div>
+                    <div><strong>Term Range:</strong> {p.min_term} - {p.max_term} periods</div>
+                    <div><strong>Frequency:</strong> {p.compounding_period}</div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (onNavigateToApply) onNavigateToApply();
+                    }}
+                    className="w-full mt-3 py-2 bg-kina-deep text-ledger-paper font-display text-xs uppercase font-bold rounded"
+                  >
+                    Apply For {p.name}
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -190,7 +248,7 @@ export default function PublicSite({ onLoginSuccess, onNavigateToApply }) {
               🧮 Interactive Loan Calculator
             </h2>
             <p className="text-xs text-ledger-ink/70">
-              Calculate your exact fortnightly or monthly repayment using our server-side financial engine.
+              Calculate your exact fortnightly or monthly repayment using our financial engine.
             </p>
 
             <form onSubmit={handleCalculate} className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -203,7 +261,7 @@ export default function PublicSite({ onLoginSuccess, onNavigateToApply }) {
                   value={calcAmount}
                   onChange={(e) => setCalcAmount(e.target.value)}
                   className="w-full p-2 text-sm border border-ledger-rule rounded"
-                  min="200"
+                  min="100"
                   max="50000"
                 />
               </div>
@@ -282,60 +340,46 @@ export default function PublicSite({ onLoginSuccess, onNavigateToApply }) {
           </div>
         )}
 
-        {/* Public Information Pages */}
-        {activeTab === "how_it_works" && (
-          <div className="bg-white p-8 border border-ledger-rule rounded max-w-3xl mx-auto space-y-4 text-xs leading-relaxed">
-            <h2 className="text-2xl font-display font-bold uppercase text-kina-deep">How It Works</h2>
-            <ol className="list-decimal pl-5 space-y-3 text-sm">
-              <li><strong>Create Account & Self-Register:</strong> Enter your basic personal details and mobile phone number.</li>
-              <li><strong>Fill Online 17-Step Wizard:</strong> Provide income, employment details, and bank account details.</li>
-              <li><strong>Automated Assessment:</strong> Our credit engine instantly evaluates your application against risk and DTI limits.</li>
-              <li><strong>E-Sign Digital Contract:</strong> Review your loan offer and electronically sign the binding agreement.</li>
-              <li><strong>Direct Disbursement:</strong> Funds are sent straight to your BSP bank account.</li>
-            </ol>
+        {/* Consumer Protection Pages */}
+        {activeTab === "terms" && (
+          <div className="bg-white p-8 border border-ledger-rule rounded max-w-4xl mx-auto space-y-4 text-xs leading-relaxed">
+            <h2 className="text-2xl font-display font-bold uppercase text-kina-deep">Loan Terms & Conditions</h2>
+            <p>Sparkle Consultants provides short-term micro-financing under strict credit policies and PNG consumer protection guidelines.</p>
+            <h3 className="font-bold text-sm text-kina-deep">1. Repayment Obligations</h3>
+            <p>Borrowers are bound to repay the agreed principal, accrued interest, and administrative fees according to the generated LoanSchedule.</p>
+            <h3 className="font-bold text-sm text-kina-deep">2. Payroll Deductions</h3>
+            <p>Public servants opting for Alesco payroll deduction consent to direct employer withholding up to the 50% net pay retention ceiling.</p>
+            <p className="text-[10px] text-ledger-ink/60 mt-4">[TODO: Verify specific PNG commercial lending licensing updates as regulatory framework evolves.]</p>
           </div>
         )}
 
-        {activeTab === "eligibility" && (
-          <div className="bg-white p-8 border border-ledger-rule rounded max-w-3xl mx-auto space-y-4 text-xs leading-relaxed">
-            <h2 className="text-2xl font-display font-bold uppercase text-kina-deep">Eligibility Requirements</h2>
-            <ul className="list-disc pl-5 space-y-2 text-sm">
-              <li>Must be a Papua New Guinea citizen or registered resident aged 18+.</li>
-              <li>Must have a verifiable fortnightly income of at least PGK 300.</li>
-              <li>Must hold an active bank account with BSP, Kina Bank, or Westpac PNG.</li>
-              <li>Public service employees must comply with Alesco 50% net pay retention rules.</li>
-            </ul>
-          </div>
-        )}
-
-        {activeTab === "faqs" && (
-          <div className="bg-white p-8 border border-ledger-rule rounded max-w-3xl mx-auto space-y-4 text-xs leading-relaxed">
-            <h2 className="text-2xl font-display font-bold uppercase text-kina-deep">Frequently Asked Questions</h2>
-            <div className="space-y-3 text-sm">
-              <p><strong>Q: How long does approval take?</strong><br />A: Automated decisions are issued within seconds of submitting your application.</p>
-              <p><strong>Q: What payment methods are supported?</strong><br />A: BSP online gateway, bank transfer, and payroll deduction.</p>
-            </div>
-          </div>
-        )}
-
-        {activeTab === "about" && (
-          <div className="bg-white p-8 border border-ledger-rule rounded max-w-3xl mx-auto space-y-4 text-xs leading-relaxed">
-            <h2 className="text-2xl font-display font-bold uppercase text-kina-deep">About Sparkle Consultants</h2>
-            <p className="text-sm">Sparkle Consultants is a premier single-business online lending platform delivering transparent, technology-driven micro-financing across Papua New Guinea.</p>
-          </div>
-        )}
-
-        {activeTab === "contact" && (
-          <div className="bg-white p-8 border border-ledger-rule rounded max-w-3xl mx-auto space-y-4 text-xs leading-relaxed">
-            <h2 className="text-2xl font-display font-bold uppercase text-kina-deep">Contact Us</h2>
-            <p className="text-sm">Email: owner@sparkleconsultants.com<br />Phone: +675 321 0000<br />Address: Waigani, Port Moresby, NCD, Papua New Guinea</p>
+        {activeTab === "privacy" && (
+          <div className="bg-white p-8 border border-ledger-rule rounded max-w-4xl mx-auto space-y-4 text-xs leading-relaxed">
+            <h2 className="text-2xl font-display font-bold uppercase text-kina-deep">Privacy & Data Protection Policy</h2>
+            <p>We respect your privacy and protect sensitive borrower PII using AES-GCM application-layer encryption and peppered SHA-256 hashes.</p>
+            <h3 className="font-bold text-sm text-kina-deep">Data Retention & Deletion</h3>
+            <p>Borrower records and audit logs are retained in accordance with financial record-keeping standards for audit compliance. Access to sensitive PII is logged via our AuditService.</p>
           </div>
         )}
 
         {activeTab === "responsible" && (
-          <div className="bg-white p-8 border border-ledger-rule rounded max-w-3xl mx-auto space-y-4 text-xs leading-relaxed">
+          <div className="bg-white p-8 border border-ledger-rule rounded max-w-4xl mx-auto space-y-4 text-xs leading-relaxed">
             <h2 className="text-2xl font-display font-bold uppercase text-kina-deep">Responsible Lending Policy</h2>
-            <p className="text-sm">Sparkle Consultants strictly enforces debt-to-income limits and Alesco payroll retention caps to prevent over-indebtedness.</p>
+            <p>Sparkle Consultants conducts automated affordability checks on every application. We cap debt-to-income (DTI) ratios at 50% and enforce Alesco payroll ceilings to prevent debt stress.</p>
+          </div>
+        )}
+
+        {activeTab === "complaints" && (
+          <div className="bg-white p-8 border border-ledger-rule rounded max-w-4xl mx-auto space-y-4 text-xs leading-relaxed">
+            <h2 className="text-2xl font-display font-bold uppercase text-kina-deep">Complaints & Dispute Resolution</h2>
+            <p>If you have a concern regarding fees, service delivery, or collections conduct, submit a complaint via your Customer Portal or email compliance@sparkleconsultants.com.</p>
+          </div>
+        )}
+
+        {activeTab === "collections" && (
+          <div className="bg-white p-8 border border-ledger-rule rounded max-w-4xl mx-auto space-y-4 text-xs leading-relaxed">
+            <h2 className="text-2xl font-display font-bold uppercase text-kina-deep">Default & Collections Policy</h2>
+            <p>In the event of missed repayments, accounts enter structured collection stages (Overdue 1-7 days to Recovery). Arrears notifications will be issued via SMS/in-app messaging. Late fees are calculated per configured product terms.</p>
           </div>
         )}
 
@@ -380,6 +424,21 @@ export default function PublicSite({ onLoginSuccess, onNavigateToApply }) {
                   className="w-full p-2 text-sm border border-ledger-rule rounded bg-ledger-paper/50"
                 />
               </div>
+              {mfaRequired && (
+                <div>
+                  <label className="block text-xs font-display uppercase tracking-wider font-semibold text-ledger-ink/80 mb-1">
+                    TOTP MFA Code
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={mfaCode}
+                    onChange={(e) => setMfaCode(e.target.value)}
+                    placeholder="6-digit MFA Code"
+                    className="w-full p-2 text-sm border border-ledger-rule rounded bg-ledger-paper/50"
+                  />
+                </div>
+              )}
               <button
                 type="submit"
                 disabled={loginLoading}

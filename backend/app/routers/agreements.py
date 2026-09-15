@@ -1,11 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import uuid
 
 from app.core.database import get_db
-from app.models.orm import Loan, Customer
+from app.models.orm import Loan, Customer, User
+from app.routers.auth import get_current_user
 from app.services.agreement_service import AgreementService
 from app.core.crypto import decrypt_field
 
@@ -19,11 +20,21 @@ class SignAgreementRequest(BaseModel):
 
 
 @router.get("/loan/{loan_id}")
-async def get_agreement(loan_id: str, db: AsyncSession = Depends(get_db)):
+async def get_agreement(
+    loan_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     stmt = select(Loan).where(Loan.id == uuid.UUID(loan_id))
     loan = (await db.execute(stmt)).scalar_one_or_none()
     if not loan:
         raise HTTPException(status_code=404, detail="Loan not found")
+
+    if current_user.role == "customer":
+        cust_stmt = select(Customer.id).where(Customer.user_id == current_user.id)
+        cust_id = (await db.execute(cust_stmt)).scalar_one_or_none()
+        if loan.customer_id != cust_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
     cust_stmt = select(Customer).where(Customer.id == loan.customer_id)
     cust = (await db.execute(cust_stmt)).scalar_one_or_none()
@@ -43,7 +54,22 @@ async def get_agreement(loan_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/sign")
-async def sign_agreement(body: SignAgreementRequest, db: AsyncSession = Depends(get_db)):
+async def sign_agreement(
+    body: SignAgreementRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    stmt = select(Loan).where(Loan.id == uuid.UUID(body.loan_id))
+    loan = (await db.execute(stmt)).scalar_one_or_none()
+    if not loan:
+        raise HTTPException(status_code=404, detail="Loan not found")
+
+    if current_user.role == "customer":
+        cust_stmt = select(Customer.id).where(Customer.user_id == current_user.id)
+        cust_id = (await db.execute(cust_stmt)).scalar_one_or_none()
+        if loan.customer_id != cust_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+
     sig = AgreementService.record_electronic_signature(
         agreement_id=body.loan_id,
         ip_address=body.ip_address,

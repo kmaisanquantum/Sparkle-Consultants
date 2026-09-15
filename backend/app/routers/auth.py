@@ -1,17 +1,21 @@
 from datetime import datetime, timedelta, timezone
-from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Header
+from typing import Optional, List
+from fastapi import APIRouter, Depends, HTTPException, status, Header, Request
 from jose import jwt, JWTError
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+import pyotp
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.crypto import hash_password, verify_password, hash_phone, encrypt_field
-from app.models.orm import User, Customer, CustomerProfile, RiskProfile, Tenant
+from app.models.orm import User, Customer, CustomerProfile, RiskProfile, Tenant, Notification
 from app.services.audit_service import AuditService
 
+limiter = Limiter(key_func=get_remote_address)
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
 
@@ -19,6 +23,7 @@ class LoginRequest(BaseModel):
     email: Optional[str] = None
     username: Optional[str] = None
     password: str
+    mfa_code: Optional[str] = None
 
 
 class LoginResponse(BaseModel):
@@ -48,6 +53,25 @@ class UserMeResponse(BaseModel):
     customer_id: Optional[str] = None
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+class MFASetupResponse(BaseModel):
+    secret: str
+    provisioning_uri: str
+
+
+class MFAVerifyRequest(BaseModel):
+    mfa_code: str
+    secret: Optional[str] = None
+
+
 async def get_current_user(authorization: str = Header(...), db: AsyncSession = Depends(get_db)) -> User:
     if not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing bearer token")
@@ -57,19 +81,35 @@ async def get_current_user(authorization: str = Header(...), db: AsyncSession = 
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
+    if payload.get("type") == "reset_password":
+        raise HTTPException(status_code=401, detail="Reset token cannot be used for authentication")
+
     user_id = payload.get("user_id") or payload.get("tenant_id")
     if not user_id:
         raise HTTPException(status_code=401, detail="Token missing identity claims")
 
     stmt = select(User).where(User.id == user_id)
     user = (await db.execute(stmt)).scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=401, detail="User account not found")
+    if not user or not user.is_active:
+        raise HTTPException(status_code=401, detail="User account not found or inactive")
     return user
 
 
+def require_roles(*allowed_roles: str):
+    async def role_checker(current_user: User = Depends(get_current_user)) -> User:
+        if current_user.role not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"User role '{current_user.role}' is not authorized to access this resource"
+            )
+        return current_user
+    return role_checker
+
+
 @router.post("/register", response_model=LoginResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("5/minute")
 async def register_customer(
+    request: Request,
     body: CustomerRegisterRequest,
     db: AsyncSession = Depends(get_db),
 ):
@@ -124,6 +164,15 @@ async def register_customer(
     db.add(CustomerProfile(customer_id=customer.id, province=body.province))
     db.add(RiskProfile(customer_id=customer.id, risk_tier="low", risk_score=700, max_approved_limit=10000.00))
 
+    # Welcome Notification
+    db.add(Notification(
+        user_id=user.id,
+        customer_id=customer.id,
+        title="Welcome to Sparkle Consultants",
+        message=f"Welcome {body.full_name}! Your account has been registered successfully.",
+        channel="in_app"
+    ))
+
     await AuditService.log_event(
         db=db,
         action="CUSTOMER_REGISTERED",
@@ -158,7 +207,9 @@ async def register_customer(
 
 
 @router.post("/login", response_model=LoginResponse)
+@limiter.limit("10/minute")
 async def login(
+    request: Request,
     body: LoginRequest,
     db: AsyncSession = Depends(get_db),
 ):
@@ -184,6 +235,20 @@ async def login(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is deactivated",
         )
+
+    # Check MFA if enabled
+    if user.mfa_enabled:
+        if not body.mfa_code:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="MFA code required for login",
+            )
+        totp = pyotp.TOTP(user.mfa_secret)
+        if not totp.verify(body.mfa_code):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid MFA code",
+            )
 
     cust_stmt = select(Customer).where(Customer.user_id == user.id)
     cust = (await db.execute(cust_stmt)).scalar_one_or_none()
@@ -216,6 +281,152 @@ async def login(
         full_name=user.full_name,
         customer_id=customer_id
     )
+
+
+@router.post("/forgot-password")
+@limiter.limit("5/minute")
+async def forgot_password(
+    request: Request,
+    body: ForgotPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = select(User).where(User.email == body.email.lower().strip())
+    user = (await db.execute(stmt)).scalar_one_or_none()
+
+    # Generic message to prevent email enumeration
+    response_msg = {"message": "If an account with that email exists, password reset instructions have been sent."}
+    if not user:
+        return response_msg
+
+    expiry = datetime.now(timezone.utc) + timedelta(minutes=15)
+    reset_payload = {
+        "user_id": str(user.id),
+        "type": "reset_password",
+        "exp": int(expiry.timestamp())
+    }
+    reset_token = jwt.encode(reset_payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+
+    db.add(Notification(
+        user_id=user.id,
+        title="Password Reset Request",
+        message=f"A password reset was requested. Use reset token: {reset_token}",
+        channel="in_app"
+    ))
+
+    await AuditService.log_event(
+        db=db,
+        action="PASSWORD_RESET_REQUESTED",
+        entity_type="USER",
+        entity_id=str(user.id),
+        user_id=str(user.id)
+    )
+    await db.commit()
+
+    return {"message": "Password reset token generated successfully", "reset_token": reset_token}
+
+
+@router.post("/reset-password")
+async def reset_password(
+    body: ResetPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        payload = jwt.decode(body.token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+    except JWTError:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+    if payload.get("type") != "reset_password":
+        raise HTTPException(status_code=400, detail="Invalid token type")
+
+    user_id = payload.get("user_id")
+    stmt = select(User).where(User.id == user_id)
+    user = (await db.execute(stmt)).scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.password_hash = hash_password(body.new_password)
+
+    await AuditService.log_event(
+        db=db,
+        action="PASSWORD_RESET_COMPLETED",
+        entity_type="USER",
+        entity_id=str(user.id),
+        user_id=str(user.id)
+    )
+    await db.commit()
+
+    return {"message": "Password has been reset successfully."}
+
+
+@router.post("/mfa/setup", response_model=MFASetupResponse)
+async def mfa_setup(
+    current_user: User = Depends(get_current_user)
+):
+    secret = pyotp.random_base32()
+    totp = pyotp.TOTP(secret)
+    provisioning_uri = totp.provisioning_uri(
+        name=current_user.email,
+        issuer_name="Sparkle Consultants"
+    )
+    return MFASetupResponse(secret=secret, provisioning_uri=provisioning_uri)
+
+
+@router.post("/mfa/verify")
+async def mfa_verify(
+    body: MFAVerifyRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    secret = body.secret or current_user.mfa_secret
+    if not secret:
+        raise HTTPException(status_code=400, detail="MFA secret missing")
+
+    totp = pyotp.TOTP(secret)
+    if not totp.verify(body.mfa_code):
+        raise HTTPException(status_code=400, detail="Invalid MFA verification code")
+
+    current_user.mfa_enabled = True
+    current_user.mfa_secret = secret
+
+    await AuditService.log_event(
+        db=db,
+        action="MFA_ENABLED",
+        entity_type="USER",
+        entity_id=str(current_user.id),
+        user_id=str(current_user.id)
+    )
+    await db.commit()
+
+    return {"message": "MFA enabled successfully"}
+
+
+@router.post("/mfa/disable")
+async def mfa_disable(
+    body: MFAVerifyRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    if not current_user.mfa_enabled or not current_user.mfa_secret:
+        raise HTTPException(status_code=400, detail="MFA is not enabled for this account")
+
+    totp = pyotp.TOTP(current_user.mfa_secret)
+    if not totp.verify(body.mfa_code):
+        raise HTTPException(status_code=400, detail="Invalid MFA verification code")
+
+    current_user.mfa_enabled = False
+    current_user.mfa_secret = None
+
+    await AuditService.log_event(
+        db=db,
+        action="MFA_DISABLED",
+        entity_type="USER",
+        entity_id=str(current_user.id),
+        user_id=str(current_user.id)
+    )
+    await db.commit()
+
+    return {"message": "MFA disabled successfully"}
 
 
 @router.get("/me", response_model=UserMeResponse)

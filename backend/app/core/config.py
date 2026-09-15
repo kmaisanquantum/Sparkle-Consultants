@@ -3,6 +3,7 @@ Central configuration. All values are overridden via environment
 variables in production (Coolify injects these at deploy time) —
 nothing sensitive is hardcoded.
 """
+from typing import List, Union
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -23,14 +24,18 @@ class Settings(BaseSettings):
             return "postgresql+asyncpg://" + v[len("postgresql://"):]
         return v
 
+    # CORS settings
+    cors_allowed_origins_raw: str = "https://www.sparcons.com,http://localhost:3000,http://localhost:5173,http://localhost:8000"
+
+    @property
+    def cors_allowed_origins(self) -> List[str]:
+        return [origin.strip() for origin in self.cors_allowed_origins_raw.split(",") if origin.strip()]
+
     # Pepper used alongside per-record salts when hashing phone/ID numbers.
-    # Must be a long random secret set via env var in production, never
-    # committed to source control.
     hash_pepper: str = "CHANGE_ME_IN_PRODUCTION"
 
     # Symmetric key (32-byte, base64) for application-layer encryption
-    # of borrower PII fields (name, address, employer). Rotate via a
-    # documented key-rotation runbook, not by editing this default.
+    # of borrower PII fields (name, address, employer).
     field_encryption_key: str = "CHANGE_ME_32_BYTE_BASE64_KEY_HERE=="
 
     # JWT signing for tenant/agent auth
@@ -39,11 +44,20 @@ class Settings(BaseSettings):
     jwt_expiry_minutes: int = 60 * 12
 
     # Regulatory ceiling: PNG Alesco public-service payroll deduction cap.
-    # Kept configurable (not hardcoded in business logic) since ceilings
-    # are set by government circular and can change.
     alesco_max_total_deduction_pct: float = 50.00
 
     max_upload_mb: int = 8
+
+    # Email / SMTP configuration
+    smtp_server: str = "smtp.mailtrap.io"
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from_email: str = "noreply@sparkleconsultants.com"
+
+    # SMS Provider configuration
+    sms_provider_url: str = "https://api.sms-gateway-stub.pg/v1/send"
+    sms_provider_api_key: str = ""
 
 
 settings = Settings()

@@ -3,6 +3,10 @@ import { useState, useEffect } from "react";
 export default function CustomerPortal({ onLogout }) {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [currentCustomerId, setCurrentCustomerId] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
+  const [loans, setLoans] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [consentGiven, setConsentGiven] = useState(false);
 
   useEffect(() => {
     const fetchMe = async () => {
@@ -15,13 +19,33 @@ export default function CustomerPortal({ onLogout }) {
           if (res.ok) {
             const data = await res.json();
             setCurrentCustomerId(data.customer_id);
+            setUserProfile(data);
           }
         } catch (e) {
           console.error(e);
         }
       }
     };
+
+    const fetchLoans = async () => {
+      const token = localStorage.getItem("sparkle_token");
+      if (token) {
+        try {
+          const res = await fetch("/api/v1/loans", {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setLoans(data);
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    };
+
     fetchMe();
+    fetchLoans();
   }, []);
 
   // Application wizard state (17-step flow)
@@ -39,15 +63,25 @@ export default function CustomerPortal({ onLogout }) {
 
   const handleCreateDraft = async () => {
     try {
+      const token = localStorage.getItem("sparkle_token");
       const res = await fetch("/api/v1/applications/draft", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify({
           amount_requested: parseFloat(appAmount),
           term_requested: parseInt(appTerm),
           compounding_period: "fortnightly",
           purpose: appPurpose,
-          step_completed: wizardStep
+          step_completed: wizardStep,
+          draft_data: {
+            net_income: 1800.0,
+            existing_obligations: 200.0,
+            borrower_consent: consentGiven,
+            consent_timestamp: new Date().toISOString()
+          }
         })
       });
       if (res.ok) {
@@ -60,11 +94,19 @@ export default function CustomerPortal({ onLogout }) {
   };
 
   const handleFinalSubmit = async () => {
+    if (!consentGiven) {
+      alert("Please check and accept the Borrower Consent & Disclosure declaration before submitting.");
+      return;
+    }
     setAppSubmitting(true);
     try {
       const appId = await handleCreateDraft();
       if (appId) {
-        const subRes = await fetch(`/api/v1/applications/${appId}/submit`, { method: "POST" });
+        const token = localStorage.getItem("sparkle_token");
+        const subRes = await fetch(`/api/v1/applications/${appId}/submit`, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${token}` }
+        });
         if (subRes.ok) {
           const data = await subRes.json();
           setAppResult(data);
@@ -159,51 +201,75 @@ export default function CustomerPortal({ onLogout }) {
             <header className="flex justify-between items-center border-b border-ledger-rule pb-4">
               <div>
                 <span className="text-xs uppercase tracking-widest text-bilum-teal font-medium">Customer Dashboard</span>
-                <h1 className="font-display text-3xl font-bold text-kina-deep">Welcome Back, Kila Kopi</h1>
+                <h1 className="font-display text-3xl font-bold text-kina-deep">
+                  Welcome Back, {userProfile?.full_name || "Borrower"}
+                </h1>
               </div>
               <button
                 onClick={() => setActiveTab("apply")}
                 className="px-4 py-2 bg-kina-gold text-kina-deep font-display uppercase font-bold text-xs rounded shadow hover:bg-yellow-400"
               >
-                + New Loan / Top-Up
+                + New Application
               </button>
             </header>
+
+            {/* Application Lifecycle Tracker */}
+            <div className="bg-white p-6 border border-ledger-rule rounded shadow-sm space-y-3">
+              <h3 className="font-display text-base font-bold text-kina-deep uppercase">📍 Application Status Tracking</h3>
+              <div className="flex flex-wrap justify-between items-center gap-2 text-xs font-display uppercase font-semibold text-ledger-ink/70">
+                <span className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded">1. Draft ✅</span>
+                <span>→</span>
+                <span className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded">2. Submitted ✅</span>
+                <span>→</span>
+                <span className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded">3. Under Review ✅</span>
+                <span>→</span>
+                <span className="px-3 py-1 bg-kina-gold/30 text-kina-deep rounded font-bold">4. Approved / Offered ✨</span>
+                <span>→</span>
+                <span className="px-3 py-1 bg-ledger-paper rounded">5. Disbursed</span>
+                <span>→</span>
+                <span className="px-3 py-1 bg-ledger-paper rounded">6. Completed</span>
+              </div>
+            </div>
 
             {/* Overview Metric Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-white p-5 border border-ledger-rule rounded shadow-sm">
-                <span className="text-xs text-ledger-ink/60 font-display uppercase">Active Loan Balance</span>
-                <p className="text-2xl font-bold text-kina-deep mt-1">PGK 10,500.00</p>
-                <span className="text-[10px] text-emerald-600 font-semibold">Active • 10 Fortnights</span>
+                <span className="text-xs text-ledger-ink/60 font-display uppercase">Active Loans Count</span>
+                <p className="text-2xl font-bold text-kina-deep mt-1">{loans.length}</p>
+                <span className="text-[10px] text-emerald-600 font-semibold">Self-Service Account</span>
               </div>
               <div className="bg-white p-5 border border-ledger-rule rounded shadow-sm">
-                <span className="text-xs text-ledger-ink/60 font-display uppercase">Next Repayment</span>
-                <p className="text-2xl font-bold text-kina-gold mt-1">PGK 1,320.00</p>
-                <span className="text-[10px] text-ledger-ink/60">Due on 14 Nov 2024</span>
+                <span className="text-xs text-ledger-ink/60 font-display uppercase">Outstanding Balance</span>
+                <p className="text-2xl font-bold text-kina-gold mt-1">
+                  PGK {loans.reduce((acc, l) => acc + (l.outstanding_balance || 0), 0).toFixed(2)}
+                </p>
+                <span className="text-[10px] text-ledger-ink/60">Live Balance</span>
               </div>
               <div className="bg-white p-5 border border-ledger-rule rounded shadow-sm">
-                <span className="text-xs text-ledger-ink/60 font-display uppercase">Total Borrowed</span>
-                <p className="text-2xl font-bold text-ledger-ink mt-1">PGK 12,000.00</p>
-                <span className="text-[10px] text-ledger-ink/60">Alesco Payroll Verified</span>
+                <span className="text-xs text-ledger-ink/60 font-display uppercase">Role & Access</span>
+                <p className="text-2xl font-bold text-ledger-ink mt-1 uppercase">{userProfile?.role || "Customer"}</p>
+                <span className="text-[10px] text-ledger-ink/60">RBAC Role Assigned</span>
               </div>
               <div className="bg-white p-5 border border-ledger-rule rounded shadow-sm">
-                <span className="text-xs text-ledger-ink/60 font-display uppercase">Top-Up Status</span>
-                <p className="text-2xl font-bold text-emerald-600 mt-1">Eligible ✨</p>
-                <span className="text-[10px] text-emerald-600 font-semibold">Up to PGK 5,000 available</span>
+                <span className="text-xs text-ledger-ink/60 font-display uppercase">MFA Status</span>
+                <p className="text-2xl font-bold text-emerald-600 mt-1">
+                  {userProfile?.mfa_enabled ? "Enabled 🔒" : "Disabled ⚠️"}
+                </p>
+                <span className="text-[10px] text-ledger-ink/60">Account Security</span>
               </div>
             </div>
 
-            {/* Recent Notifications */}
+            {/* Notifications */}
             <div className="bg-white p-6 border border-ledger-rule rounded shadow-sm space-y-3">
               <h3 className="font-display text-base font-bold text-kina-deep uppercase">🔔 Recent Notifications</h3>
               <ul className="divide-y divide-ledger-rule/20 text-xs">
                 <li className="py-2.5 flex justify-between">
-                  <span>Your fortnightly salary deduction payment of PGK 1,500 was successfully posted.</span>
-                  <span className="text-ledger-ink/50">2 days ago</span>
+                  <span>Welcome to Sparkle Consultants online portal.</span>
+                  <span className="text-ledger-ink/50">Today</span>
                 </li>
                 <li className="py-2.5 flex justify-between">
-                  <span>Loan Agreement signed and verified digitally.</span>
-                  <span className="text-ledger-ink/50">1 month ago</span>
+                  <span>Alesco payroll deduction check active on account profile.</span>
+                  <span className="text-ledger-ink/50">Recent</span>
                 </li>
               </ul>
             </div>
@@ -232,9 +298,9 @@ export default function CustomerPortal({ onLogout }) {
                   <div className="space-y-3">
                     <h4 className="font-display text-sm font-bold uppercase text-kina-deep">Step 1: Account & Product Selection</h4>
                     <label className="block">Requested Amount (PGK)</label>
-                    <input type="number" value={appAmount} onChange={(e) => setAppAmount(e.target.value)} className="w-full p-2 border border-ledger-rule rounded" />
+                    <input type="number" value={appAmount} onChange={(e) => setAppAmount(e.target.value)} className="w-full p-2 border border-ledger-rule rounded" min="100" />
                     <label className="block mt-2">Term Periods (Fortnights)</label>
-                    <input type="number" value={appTerm} onChange={(e) => setAppTerm(e.target.value)} className="w-full p-2 border border-ledger-rule rounded" />
+                    <input type="number" value={appTerm} onChange={(e) => setAppTerm(e.target.value)} className="w-full p-2 border border-ledger-rule rounded" min="2" />
                   </div>
                 )}
                 {wizardStep > 1 && wizardStep < 16 && (
@@ -246,9 +312,18 @@ export default function CustomerPortal({ onLogout }) {
                   </div>
                 )}
                 {wizardStep === 16 && (
-                  <div className="p-4 bg-emerald-50 border border-emerald-300 rounded space-y-2 text-emerald-800">
-                    <h4 className="font-display text-sm font-bold uppercase">Step 16: Declarations & Final Review</h4>
-                    <p>By clicking submit, you consent to credit decision evaluation and digital contract execution.</p>
+                  <div className="p-4 bg-emerald-50 border border-emerald-300 rounded space-y-3 text-emerald-900">
+                    <h4 className="font-display text-sm font-bold uppercase">Step 16: Declarations & Borrower Consent</h4>
+                    <p>By clicking submit, you authorize Sparkle Consultants to verify your employment and bank account details, conduct credit scoring evaluation, and enforce Alesco 50% net pay retention rules.</p>
+                    <label className="flex items-center space-x-2 cursor-pointer font-bold pt-2">
+                      <input
+                        type="checkbox"
+                        checked={consentGiven}
+                        onChange={(e) => setConsentGiven(e.target.checked)}
+                        className="rounded text-kina-deep"
+                      />
+                      <span>I confirm all information provided is true and accept the Loan Terms & Privacy Policy.</span>
+                    </label>
                   </div>
                 )}
 
@@ -310,26 +385,38 @@ export default function CustomerPortal({ onLogout }) {
         {activeTab === "my_loans" && (
           <div className="bg-white p-6 border border-ledger-rule rounded shadow-sm space-y-4 text-xs">
             <h2 className="text-2xl font-display font-bold uppercase text-kina-deep">💸 My Loans & Repayment Schedule</h2>
-            <div className="p-4 border border-ledger-rule rounded bg-ledger-paper">
-              <h4 className="font-display font-bold text-base text-kina-deep uppercase">Loan #LOAN-99201</h4>
-              <p>Principal: PGK 12,000.00 | Outstanding Balance: PGK 10,500.00 | Status: <span className="font-semibold text-emerald-600">ACTIVE</span></p>
-            </div>
+            {loans.length > 0 ? (
+              loans.map((l) => (
+                <div key={l.id} className="p-4 border border-ledger-rule rounded bg-ledger-paper space-y-2">
+                  <div className="flex justify-between items-center">
+                    <h4 className="font-display font-bold text-base text-kina-deep uppercase">Loan #{l.id.substring(0, 8)}</h4>
+                    <span className="font-semibold px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded uppercase">{l.status}</span>
+                  </div>
+                  <p>Principal: PGK {l.principal_amount?.toFixed(2)} | Outstanding Balance: PGK {l.outstanding_balance?.toFixed(2)}</p>
+                  <p>Compounding: {l.compounding_period} | Term Periods: {l.term_periods}</p>
+                </div>
+              ))
+            ) : (
+              <p className="text-ledger-ink/60">No active loans found on record.</p>
+            )}
           </div>
         )}
 
         {/* Profile & Support Surfaces */}
         {activeTab === "profile" && (
           <div className="bg-white p-6 border border-ledger-rule rounded shadow-sm space-y-4 text-xs">
-            <h2 className="text-2xl font-display font-bold uppercase text-kina-deep">👤 Profile & KYC Status</h2>
-            <p>KYC Verification: <span className="text-emerald-600 font-bold">VERIFIED ✅</span></p>
-            <p>Employer: Department of Treasury (Public Servant)</p>
+            <h2 className="text-2xl font-display font-bold uppercase text-kina-deep">👤 Profile & Account Info</h2>
+            <p><strong>Full Name:</strong> {userProfile?.full_name}</p>
+            <p><strong>Email:</strong> {userProfile?.email}</p>
+            <p><strong>Role:</strong> {userProfile?.role}</p>
+            <p><strong>Customer ID:</strong> {userProfile?.customer_id || "N/A"}</p>
           </div>
         )}
 
         {activeTab === "support" && (
           <div className="bg-white p-6 border border-ledger-rule rounded shadow-sm space-y-4 text-xs">
-            <h2 className="text-2xl font-display font-bold uppercase text-kina-deep">🎧 Customer Support & Help Centre</h2>
-            <p>For enquiries or formal complaints, contact our customer support team at support@sparkleconsultants.com.</p>
+            <h2 className="text-2xl font-display font-bold uppercase text-kina-deep">🎧 Customer Support & Complaints</h2>
+            <p>For enquiries, dispute resolution, or formal complaints, contact our support team at compliance@sparkleconsultants.com or call +675 321 0000.</p>
           </div>
         )}
       </main>
