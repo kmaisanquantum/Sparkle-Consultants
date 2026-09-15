@@ -74,18 +74,19 @@ The application deploys as a **SINGLE service** on port 8000, bundling the built
 2. Point it at this repository with:
    - **Build Pack**: `Dockerfile` (preferred, bypasses Nixpacks entirely) OR `Nixpacks` (a root `nixpacks.toml` is provided for platforms that force Nixpacks).
    - **Base Directory**: `/` (repo root)
-   - **Exposed Port**: `8000` (the single exposed port serving both API and SPA)
-3. **Important for Dockerfile vs Nixpacks builds:**
-   - **Dockerfile build pack (recommended):** Clear any "Nix Packages" or custom packages field in Coolify's UI entirely so it does not attempt to resolve Nix dependencies.
-   - **Nixpacks build pack:** Note that Coolify's UI "Nix Packages" field overrides `nixpacks.toml`. If configured in the UI, ensure exact valid Nix package attribute names are used (e.g., `poppler_utils` with an underscore, NOT `poppler-utils`, `tesseract`, `nodejs_20`, `python312`) and avoid specifying duplicate Python packages.
-4. Configure the following environment variables in your platform control panel:
-   - `DATABASE_URL`: Connection string to your PostgreSQL database using the async driver, e.g., `postgresql+asyncpg://<user>:<password>@<managed-db-host>:5432/<dbname>`. (Note: ensure you set this explicitly in your panel rather than relying on the hardcoded fallback `wantok` connection string in `backend/app/core/config.py`).
+   - **Exposed Port / Ports Exposes**: `8000` (the container listens on 8000, serving both API and React SPA).
+3. **Important Configuration Notes:**
+   - **Coolify UI "Nix Packages" Field:** Clear any "Nix Packages" or custom packages field in Coolify's UI entirely when using the Dockerfile build pack. If forced to use Nixpacks via UI configuration, ensure exact valid Nix package attribute names are used (`poppler_utils` with an underscore, NOT `poppler-utils`, `tesseract`, `nodejs_20`, `python312`) and do not specify duplicate Python derivations.
+   - **Coolify Domains / FQDN Field:** Ensure the domain field contains a single clean URL value like `https://www.sparcons.com` (no semicolons, trailing paths, or duplicate domain entries).
+4. Configure the required environment variables in your platform control panel:
+   - `DATABASE_URL`: Full connection string to your managed PostgreSQL database using the async driver, e.g., `postgresql+asyncpg://<user>:<password>@<managed-db-host>:5432/<dbname>`. (**Must be set explicitly in your panel; do NOT rely on the localhost fallback string**).
    - `HASH_PEPPER`: Secret random string for identity hashing.
    - `FIELD_ENCRYPTION_KEY`: A symmetric 32-byte key encoded in base64. Generate one using:
      ```bash
      python -c "import os,base64;print(base64.b64encode(os.urandom(32)).decode())"
      ```
    - `JWT_SECRET`: Random secret for signing access tokens.
+   - `BSP_MERCHANT_ID`, `BSP_WEBHOOK_SECRET`, `BSP_ENVIRONMENT`: Payment integration credentials.
 5. Deploy. On startup, the FastAPI app automatically runs database table migrations (`Base.metadata.create_all`) and seeds initial demo stats, making the app immediately functional.
 
 ### Option B: Multi-Service Docker Compose
