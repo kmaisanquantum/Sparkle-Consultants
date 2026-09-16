@@ -1,16 +1,31 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { login } from "../../lib/api";
 
 export default function PublicSite({ onLoginSuccess, onNavigateToApply }) {
   const [activeTab, setActiveTab] = useState("home");
   const [products, setProducts] = useState([]);
 
-  // Calculator state
+  // Calculator Mode: 'direct', 'affordability', 'whatif'
+  const [calcMode, setCalcMode] = useState("direct");
+
+  // Calculator State
   const [calcAmount, setCalcAmount] = useState(2000);
   const [calcTerm, setCalcTerm] = useState(10);
   const [calcPeriod, setCalcPeriod] = useState("fortnightly");
+  const [calcRiskBand, setCalcRiskBand] = useState("B");
   const [calcResult, setCalcResult] = useState(null);
   const [calcLoading, setCalcLoading] = useState(false);
+
+  // Affordability State
+  const [income, setIncome] = useState(2000);
+  const [obligations, setObligations] = useState(200);
+  const [dtiCap, setDtiCap] = useState(50);
+  const [affordResult, setAffordResult] = useState(null);
+  const [affordLoading, setAffordLoading] = useState(false);
+
+  // What-If State
+  const [whatIfResult, setWhatIfResult] = useState(null);
+  const [whatIfLoading, setWhatIfLoading] = useState(false);
 
   // Login form state
   const [email, setEmail] = useState("");
@@ -29,8 +44,8 @@ export default function PublicSite({ onLoginSuccess, onNavigateToApply }) {
       .catch((err) => console.error("Error loading products:", err));
   }, []);
 
-  const handleCalculate = async (e) => {
-    if (e) e.preventDefault();
+  // Debounced Direct Calculation
+  const runDirectCalculation = useCallback(async () => {
     setCalcLoading(true);
     try {
       const res = await fetch("/api/v1/calculator", {
@@ -38,10 +53,10 @@ export default function PublicSite({ onLoginSuccess, onNavigateToApply }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           principal_amount: parseFloat(calcAmount),
-          interest_rate_bp: 1500,
           compounding_period: calcPeriod,
           term_periods: parseInt(calcTerm),
-          admin_fee: 50.0
+          admin_fee: 50.0,
+          risk_band: calcRiskBand
         })
       });
       if (res.ok) {
@@ -49,9 +64,70 @@ export default function PublicSite({ onLoginSuccess, onNavigateToApply }) {
         setCalcResult(data);
       }
     } catch (err) {
-      console.error("Calculator error:", err);
+      console.error("Direct calculation error:", err);
     } finally {
       setCalcLoading(false);
+    }
+  }, [calcAmount, calcTerm, calcPeriod, calcRiskBand]);
+
+  useEffect(() => {
+    if (activeTab === "calculator" && calcMode === "direct") {
+      const timer = setTimeout(() => {
+        runDirectCalculation();
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [activeTab, calcMode, runDirectCalculation]);
+
+  // Run Affordability Calculation
+  const runAffordabilityCalculation = async () => {
+    setAffordLoading(true);
+    try {
+      const res = await fetch("/api/v1/calculator/affordability", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fortnightly_income: parseFloat(income),
+          existing_fortnightly_obligations: parseFloat(obligations),
+          max_dti_pct: parseFloat(dtiCap),
+          compounding_period: calcPeriod,
+          desired_term_periods: parseInt(calcTerm),
+          risk_band: calcRiskBand
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAffordResult(data);
+      }
+    } catch (err) {
+      console.error("Affordability calculation error:", err);
+    } finally {
+      setAffordLoading(false);
+    }
+  };
+
+  // Run What-If Comparison
+  const runWhatIfCalculation = async () => {
+    setWhatIfLoading(true);
+    try {
+      const res = await fetch("/api/v1/calculator/what-if", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          principal_amount: parseFloat(calcAmount),
+          compounding_period: calcPeriod,
+          risk_band: calcRiskBand,
+          terms: [4, 8, 12, 26]
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setWhatIfResult(data);
+      }
+    } catch (err) {
+      console.error("What-if calculation error:", err);
+    } finally {
+      setWhatIfLoading(false);
     }
   };
 
@@ -241,100 +317,357 @@ export default function PublicSite({ onLoginSuccess, onNavigateToApply }) {
           </div>
         )}
 
-        {/* Loan Calculator Surface */}
+        {/* Interactive Amortisation Loan Calculator */}
         {activeTab === "calculator" && (
-          <div className="bg-white p-6 md:p-8 border border-ledger-rule rounded shadow-sm max-w-3xl mx-auto space-y-6">
-            <h2 className="text-2xl font-display font-bold uppercase text-kina-deep">
-              🧮 Interactive Loan Calculator
-            </h2>
-            <p className="text-xs text-ledger-ink/70">
-              Calculate your exact fortnightly or monthly repayment using our financial engine.
-            </p>
+          <div className="bg-white p-6 md:p-8 border border-ledger-rule rounded shadow-sm max-w-4xl mx-auto space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-ledger-rule pb-4 gap-4">
+              <div>
+                <h2 className="text-2xl font-display font-bold uppercase text-kina-deep">
+                  🧮 Interactive Digital Lending Calculator
+                </h2>
+                <p className="text-xs text-ledger-ink/70">
+                  Reducing-balance amortisation engine with real-time server-authoritative calculations.
+                </p>
+              </div>
 
-            <form onSubmit={handleCalculate} className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-display uppercase tracking-wider font-semibold text-ledger-ink/80 mb-1">
-                  Requested Principal (PGK)
-                </label>
-                <input
-                  type="number"
-                  value={calcAmount}
-                  onChange={(e) => setCalcAmount(e.target.value)}
-                  className="w-full p-2 text-sm border border-ledger-rule rounded"
-                  min="100"
-                  max="50000"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-display uppercase tracking-wider font-semibold text-ledger-ink/80 mb-1">
-                  Term Periods
-                </label>
-                <input
-                  type="number"
-                  value={calcTerm}
-                  onChange={(e) => setCalcTerm(e.target.value)}
-                  className="w-full p-2 text-sm border border-ledger-rule rounded"
-                  min="2"
-                  max="52"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-display uppercase tracking-wider font-semibold text-ledger-ink/80 mb-1">
-                  Pay Frequency
-                </label>
-                <select
-                  value={calcPeriod}
-                  onChange={(e) => setCalcPeriod(e.target.value)}
-                  className="w-full p-2 text-sm border border-ledger-rule rounded"
-                >
-                  <option value="weekly">Weekly</option>
-                  <option value="fortnightly">Fortnightly</option>
-                  <option value="monthly">Monthly</option>
-                </select>
-              </div>
-              <div className="sm:col-span-3">
+              {/* Mode Switcher */}
+              <div className="flex space-x-1 bg-ledger-paper p-1 rounded border border-ledger-rule text-xs font-display uppercase font-semibold">
                 <button
-                  type="submit"
-                  disabled={calcLoading}
-                  className="w-full py-2 bg-kina-deep text-ledger-paper font-display uppercase font-semibold rounded hover:bg-kina-deep/90"
+                  onClick={() => setCalcMode("direct")}
+                  className={`px-3 py-1.5 rounded transition-all ${
+                    calcMode === "direct" ? "bg-kina-gold text-kina-deep font-bold" : "text-ledger-ink/70"
+                  }`}
                 >
-                  {calcLoading ? "Calculating..." : "Calculate Repayment"}
+                  Direct Loan
+                </button>
+                <button
+                  onClick={() => setCalcMode("affordability")}
+                  className={`px-3 py-1.5 rounded transition-all ${
+                    calcMode === "affordability" ? "bg-kina-gold text-kina-deep font-bold" : "text-ledger-ink/70"
+                  }`}
+                >
+                  Affordability
+                </button>
+                <button
+                  onClick={() => setCalcMode("whatif")}
+                  className={`px-3 py-1.5 rounded transition-all ${
+                    calcMode === "whatif" ? "bg-kina-gold text-kina-deep font-bold" : "text-ledger-ink/70"
+                  }`}
+                >
+                  What-If Matrix
                 </button>
               </div>
-            </form>
+            </div>
 
-            {calcResult && (
-              <div className="mt-6 bg-ledger-paper p-4 border border-ledger-rule rounded space-y-3">
-                <h4 className="font-display text-sm font-bold text-kina-deep uppercase">Calculation Summary</h4>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
-                  <div>
-                    <span className="text-ledger-ink/60">Periodic Repayment:</span>
-                    <p className="text-base font-bold text-kina-deep">PGK {calcResult.periodic_repayment?.toLocaleString()}</p>
+            {/* DIRECT LOAN CALCULATOR MODE */}
+            {calcMode === "direct" && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-ledger-paper/40 p-5 border border-ledger-rule rounded">
+                  {/* Slider 1: Principal Amount */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-xs font-display uppercase font-bold text-kina-deep">
+                      <span>Requested Principal</span>
+                      <span className="text-base font-bold text-kina-gold bg-kina-deep px-2 py-0.5 rounded">
+                        PGK {parseFloat(calcAmount).toLocaleString()}
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="200"
+                      max="20000"
+                      step="100"
+                      value={calcAmount}
+                      onChange={(e) => setCalcAmount(e.target.value)}
+                      className="w-full accent-kina-gold cursor-pointer"
+                    />
+                    <div className="flex justify-between text-[10px] text-ledger-ink/50">
+                      <span>PGK 200</span>
+                      <span>PGK 20,000</span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-ledger-ink/60">Total Repayment:</span>
-                    <p className="text-base font-bold text-ledger-ink">PGK {calcResult.total_repayment?.toLocaleString()}</p>
+
+                  {/* Slider 2: Term Periods */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-xs font-display uppercase font-bold text-kina-deep">
+                      <span>Term Duration</span>
+                      <span className="text-base font-bold text-kina-gold bg-kina-deep px-2 py-0.5 rounded">
+                        {calcTerm} {calcPeriod === "weekly" ? "weeks" : calcPeriod === "monthly" ? "months" : "fortnights"}
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="2"
+                      max="26"
+                      step="1"
+                      value={calcTerm}
+                      onChange={(e) => setCalcTerm(e.target.value)}
+                      className="w-full accent-kina-gold cursor-pointer"
+                    />
+                    <div className="flex justify-between text-[10px] text-ledger-ink/50">
+                      <span>2 periods</span>
+                      <span>26 periods</span>
+                    </div>
                   </div>
+
+                  {/* Selector 1: Frequency */}
                   <div>
-                    <span className="text-ledger-ink/60">Total Interest:</span>
-                    <p className="text-base font-bold text-ledger-ink">PGK {calcResult.total_interest?.toLocaleString()}</p>
+                    <label className="block text-xs font-display uppercase font-bold text-ledger-ink/80 mb-1">
+                      Repayment Frequency
+                    </label>
+                    <select
+                      value={calcPeriod}
+                      onChange={(e) => setCalcPeriod(e.target.value)}
+                      className="w-full p-2 text-xs border border-ledger-rule rounded bg-white"
+                    >
+                      <option value="weekly">Weekly</option>
+                      <option value="fortnightly">Fortnightly</option>
+                      <option value="monthly">Monthly</option>
+                    </select>
                   </div>
+
+                  {/* Selector 2: Risk Band */}
                   <div>
-                    <span className="text-ledger-ink/60">Admin Fee:</span>
-                    <p className="text-base font-bold text-ledger-ink">PGK {calcResult.total_fees?.toLocaleString()}</p>
+                    <label className="block text-xs font-display uppercase font-bold text-ledger-ink/80 mb-1">
+                      Applicant Risk Profile Band
+                    </label>
+                    <select
+                      value={calcRiskBand}
+                      onChange={(e) => setCalcRiskBand(e.target.value)}
+                      className="w-full p-2 text-xs border border-ledger-rule rounded bg-white"
+                    >
+                      <option value="A">Band A - Low Risk / Public Servant</option>
+                      <option value="B">Band B - Standard Citizen Worker</option>
+                      <option value="C">Band C - Higher Risk Profile</option>
+                      <option value="D">Band D - Sub-Prime / Manual Review</option>
+                    </select>
                   </div>
                 </div>
 
-                <div className="pt-3">
+                {/* Live Output Amortisation Breakdown */}
+                {calcResult && (
+                  <div className="bg-ledger-paper p-6 border border-ledger-rule rounded space-y-4">
+                    <div className="flex justify-between items-center border-b border-ledger-rule pb-2">
+                      <h4 className="font-display text-sm font-bold text-kina-deep uppercase">
+                        Reducing-Balance Amortisation Summary
+                      </h4>
+                      <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded">
+                        Methodology: {calcResult.methodology?.toUpperCase()}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                      <div className="bg-white p-3 border border-ledger-rule rounded shadow-sm">
+                        <span className="text-[10px] text-ledger-ink/60 uppercase font-display">Periodic Repayment</span>
+                        <p className="text-xl font-bold text-kina-gold mt-0.5">
+                          PGK {calcResult.periodic_repayment?.toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="bg-white p-3 border border-ledger-rule rounded shadow-sm">
+                        <span className="text-[10px] text-ledger-ink/60 uppercase font-display">Total Repayment</span>
+                        <p className="text-lg font-bold text-kina-deep mt-0.5">
+                          PGK {calcResult.total_repayment?.toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="bg-white p-3 border border-ledger-rule rounded shadow-sm">
+                        <span className="text-[10px] text-ledger-ink/60 uppercase font-display">Total Interest</span>
+                        <p className="text-lg font-bold text-ledger-ink mt-0.5">
+                          PGK {calcResult.total_interest?.toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="bg-white p-3 border border-ledger-rule rounded shadow-sm">
+                        <span className="text-[10px] text-ledger-ink/60 uppercase font-display">Processing Admin Fee</span>
+                        <p className="text-lg font-bold text-ledger-ink mt-0.5">
+                          PGK {calcResult.total_fees?.toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Amortisation Table Preview */}
+                    {calcResult.schedule && calcResult.schedule.length > 0 && (
+                      <div className="space-y-2 pt-2">
+                        <h5 className="font-display text-xs font-bold text-kina-deep uppercase">Amortisation Schedule Preview</h5>
+                        <div className="max-h-52 overflow-y-auto border border-ledger-rule rounded bg-white text-xs">
+                          <table className="w-full text-left border-collapse">
+                            <thead className="bg-kina-deep text-ledger-paper font-display text-[10px] uppercase">
+                              <tr>
+                                <th className="p-2">Period #</th>
+                                <th className="p-2">Due Date</th>
+                                <th className="p-2">Opening Bal</th>
+                                <th className="p-2">Principal</th>
+                                <th className="p-2">Interest</th>
+                                <th className="p-2">Total Due</th>
+                                <th className="p-2">Closing Bal</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-ledger-rule/20 font-mono text-[11px]">
+                              {calcResult.schedule.map((s) => (
+                                <tr key={s.instalment_number} className="hover:bg-ledger-paper/50">
+                                  <td className="p-2 font-bold">{s.instalment_number}</td>
+                                  <td className="p-2">{s.due_date}</td>
+                                  <td className="p-2">PGK {s.opening_balance?.toLocaleString()}</td>
+                                  <td className="p-2">PGK {s.principal_due?.toLocaleString()}</td>
+                                  <td className="p-2">PGK {s.interest_due?.toLocaleString()}</td>
+                                  <td className="p-2 font-bold text-kina-deep">PGK {s.total_due?.toLocaleString()}</td>
+                                  <td className="p-2 font-bold">PGK {s.closing_balance?.toLocaleString()}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    <button
+                      onClick={() => {
+                        if (onNavigateToApply) onNavigateToApply();
+                      }}
+                      className="w-full py-2.5 bg-kina-gold text-kina-deep font-display font-bold text-xs uppercase tracking-wider rounded shadow hover:bg-yellow-400 mt-2"
+                    >
+                      Apply Now For This Loan
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* AFFORDABILITY REVERSE CALCULATOR MODE */}
+            {calcMode === "affordability" && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-ledger-paper/40 p-5 border border-ledger-rule rounded">
+                  <div>
+                    <label className="block text-xs font-display uppercase font-bold text-ledger-ink/80 mb-1">
+                      Fortnightly Net Income (PGK)
+                    </label>
+                    <input
+                      type="number"
+                      value={income}
+                      onChange={(e) => setIncome(e.target.value)}
+                      className="w-full p-2 text-xs border border-ledger-rule rounded bg-white"
+                      min="100"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-display uppercase font-bold text-ledger-ink/80 mb-1">
+                      Existing Fortnightly Debts (PGK)
+                    </label>
+                    <input
+                      type="number"
+                      value={obligations}
+                      onChange={(e) => setObligations(e.target.value)}
+                      className="w-full p-2 text-xs border border-ledger-rule rounded bg-white"
+                      min="0"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-display uppercase font-bold text-ledger-ink/80 mb-1">
+                      Max DTI Ceiling Cap (%)
+                    </label>
+                    <input
+                      type="number"
+                      value={dtiCap}
+                      onChange={(e) => setDtiCap(e.target.value)}
+                      className="w-full p-2 text-xs border border-ledger-rule rounded bg-white"
+                      min="10"
+                      max="100"
+                    />
+                  </div>
+
+                  <div className="md:col-span-3 pt-2">
+                    <button
+                      onClick={runAffordabilityCalculation}
+                      disabled={affordLoading}
+                      className="w-full py-2 bg-kina-deep text-ledger-paper font-display text-xs uppercase font-bold rounded shadow hover:bg-kina-deep/90"
+                    >
+                      {affordLoading ? "Evaluating Capacity..." : "Calculate Maximum Borrowing Capacity"}
+                    </button>
+                  </div>
+                </div>
+
+                {affordResult && (
+                  <div className="bg-ledger-paper p-6 border border-ledger-rule rounded space-y-4">
+                    <h4 className="font-display text-sm font-bold text-kina-deep uppercase border-b border-ledger-rule pb-2">
+                      Affordability Assessment Results
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                      <div className="bg-white p-4 border border-ledger-rule rounded shadow-sm">
+                        <span className="text-[10px] text-ledger-ink/60 uppercase font-display">Max Repayment Capacity</span>
+                        <p className="text-xl font-bold text-kina-deep mt-1">
+                          PGK {affordResult.max_repayment_capacity?.toLocaleString()} / period
+                        </p>
+                      </div>
+                      <div className="bg-white p-4 border border-ledger-rule rounded shadow-sm">
+                        <span className="text-[10px] text-ledger-ink/60 uppercase font-display">Estimated Max Borrowable</span>
+                        <p className="text-xl font-bold text-kina-gold mt-1">
+                          PGK {affordResult.estimated_max_loan?.toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="bg-white p-4 border border-ledger-rule rounded shadow-sm">
+                        <span className="text-[10px] text-ledger-ink/60 uppercase font-display">Assumed Term</span>
+                        <p className="text-xl font-bold text-ledger-ink mt-1">
+                          {affordResult.term_periods} {affordResult.compounding_period}s
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* WHAT-IF MATRIX COMPARISON MODE */}
+            {calcMode === "whatif" && (
+              <div className="space-y-6">
+                <div className="flex flex-col sm:flex-row gap-4 bg-ledger-paper/40 p-5 border border-ledger-rule rounded items-end">
+                  <div className="flex-1">
+                    <label className="block text-xs font-display uppercase font-bold text-ledger-ink/80 mb-1">
+                      Fixed Principal Amount (PGK)
+                    </label>
+                    <input
+                      type="number"
+                      value={calcAmount}
+                      onChange={(e) => setCalcAmount(e.target.value)}
+                      className="w-full p-2 text-xs border border-ledger-rule rounded bg-white"
+                    />
+                  </div>
                   <button
-                    onClick={() => {
-                      if (onNavigateToApply) onNavigateToApply();
-                    }}
-                    className="w-full py-2 bg-kina-gold text-kina-deep font-display font-bold uppercase rounded"
+                    onClick={runWhatIfCalculation}
+                    disabled={whatIfLoading}
+                    className="px-6 py-2 bg-kina-deep text-ledger-paper font-display text-xs uppercase font-bold rounded shadow hover:bg-kina-deep/90"
                   >
-                    Proceed To Online Application
+                    {whatIfLoading ? "Comparing..." : "Generate Term Matrix"}
                   </button>
                 </div>
+
+                {whatIfResult && (
+                  <div className="bg-ledger-paper p-6 border border-ledger-rule rounded space-y-4">
+                    <h4 className="font-display text-sm font-bold text-kina-deep uppercase border-b border-ledger-rule pb-2">
+                      What-If Term Comparison Matrix (PGK {whatIfResult.principal_amount?.toLocaleString()})
+                    </h4>
+                    <div className="overflow-x-auto border border-ledger-rule rounded bg-white">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead className="bg-kina-deep text-ledger-paper font-display uppercase text-[10px]">
+                          <tr>
+                            <th className="p-3">Term Duration</th>
+                            <th className="p-3">Periodic Repayment</th>
+                            <th className="p-3">Total Interest Cost</th>
+                            <th className="p-3">Total Repayment Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-ledger-rule/20 font-mono">
+                          {whatIfResult.comparisons?.map((c) => (
+                            <tr key={c.term_periods} className="hover:bg-ledger-paper/50">
+                              <td className="p-3 font-bold">{c.term_periods} periods</td>
+                              <td className="p-3 text-kina-deep font-bold">PGK {c.periodic_repayment?.toLocaleString()}</td>
+                              <td className="p-3">PGK {c.total_interest?.toLocaleString()}</td>
+                              <td className="p-3 font-bold">PGK {c.total_repayment?.toLocaleString()}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

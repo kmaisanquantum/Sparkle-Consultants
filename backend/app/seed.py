@@ -87,6 +87,12 @@ async def seed_data():
                 ("bsp_environment", "sandbox", "payments", "BSP gateway environment mode"),
                 ("auto_decision_enabled", "true", "decision_engine", "Enable automated credit scoring and instant decisioning"),
                 ("max_dti_ceiling", "50.00", "decision_engine", "Maximum debt-to-income ratio threshold for automatic approval"),
+                ("pricing_base_funding_cost_bp", "400", "pricing", "Base cost of capital funding in basis points (4.0%)"),
+                ("pricing_operating_cost_bp", "500", "pricing", "Operating overhead cost in basis points (5.0%)"),
+                ("pricing_expected_credit_loss_bp", "300", "pricing", "Expected credit loss provision in basis points (3.0%)"),
+                ("pricing_risk_margin_bp", "300", "pricing", "Platform risk margin in basis points (3.0%)"),
+                ("pricing_min_rate_bp", "1000", "pricing", "Minimum floor annual interest rate in basis points (10.0%)"),
+                ("pricing_max_rate_bp", "3000", "pricing", "Maximum ceiling annual interest rate in basis points (30.0%)"),
             ]
             for key, val, cat, desc in settings_seed:
                 s_stmt = select(SystemSetting).where(SystemSetting.key == key)
@@ -94,7 +100,30 @@ async def seed_data():
                 if not existing_s:
                     db.add(SystemSetting(key=key, value=val, category=cat, description=desc))
 
-            # Loan Products
+            # Single Primary Loan Product: Sparkle Digital Micro Loan
+            prod_primary_stmt = select(LoanProduct).where(LoanProduct.code == "SPARKLE_DIGITAL_MICRO")
+            prod_primary = (await db.execute(prod_primary_stmt)).scalar_one_or_none()
+            if not prod_primary:
+                prod_primary = LoanProduct(
+                    id=uuid.uuid4(),
+                    tenant_id=tenant_id,
+                    code="SPARKLE_DIGITAL_MICRO",
+                    name="Sparkle Digital Micro Loan",
+                    description="PNG's premier single-product algorithm-driven online personal loan.",
+                    min_amount=200,
+                    max_amount=20000,
+                    interest_rate_bp=1700, # 17.0% base derived rate
+                    min_term=2,
+                    max_term=26,
+                    compounding_period="fortnightly",
+                    admin_fee=50,
+                    late_fee_bp=500,
+                    min_income=300,
+                    max_dti_pct=50.00,
+                    is_active=True,
+                )
+                db.add(prod_primary)
+
             prod_std_stmt = select(LoanProduct).where(LoanProduct.code == "PERSONAL_STANDARD")
             prod_std = (await db.execute(prod_std_stmt)).scalar_one_or_none()
             if not prod_std:
