@@ -227,6 +227,8 @@ async def submit_application(
             total_interest=payload["total_interest"],
             fees=payload["fees"],
             expires_at=payload["expires_at"],
+            calculation_methodology=payload.get("calculation_methodology", "reducing_balance"),
+            calculation_snapshot=payload.get("calculation_snapshot"),
             status="issued"
         )
         db.add(offer)

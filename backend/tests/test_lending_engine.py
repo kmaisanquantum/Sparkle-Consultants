@@ -7,19 +7,33 @@ from app.services.collections_service import CollectionsService
 from app.services.payments.bsp_provider import BSPPaymentProvider
 
 def test_calculation_engine_loan_summary():
-    calc = CalculationEngine.calculate_loan_summary(
+    # Test flat methodology explicitly
+    calc_flat = CalculationEngine.calculate_loan_summary(
         principal_amount=10000.0,
         interest_rate_bp=1500, # 15%
         compounding_period="fortnightly",
         term_periods=10,
+        admin_fee=50.0,
+        methodology="flat"
+    )
+    assert calc_flat["principal_amount"] == 10000.0
+    assert calc_flat["total_interest"] == 1500.0
+    assert calc_flat["total_fees"] == 50.0
+    assert calc_flat["total_repayment"] == 11550.0
+    assert calc_flat["periodic_repayment"] == 1155.0
+    assert len(calc_flat["schedule"]) == 10
+
+    # Test default reducing-balance annuity methodology
+    calc_rb = CalculationEngine.calculate_loan_summary(
+        principal_amount=10000.0,
+        interest_rate_bp=1500,
+        compounding_period="fortnightly",
+        term_periods=10,
         admin_fee=50.0
     )
-    assert calc["principal_amount"] == 10000.0
-    assert calc["total_interest"] == 1500.0
-    assert calc["total_fees"] == 50.0
-    assert calc["total_repayment"] == 11550.0
-    assert calc["periodic_repayment"] == 1155.0
-    assert len(calc["schedule"]) == 10
+    assert calc_rb["principal_amount"] == 10000.0
+    assert calc_rb["total_interest"] == 320.05
+    assert calc_rb["schedule"][-1]["closing_balance"] == 0.0
 
 def test_calculation_engine_early_settlement():
     settlement = CalculationEngine.calculate_early_settlement(

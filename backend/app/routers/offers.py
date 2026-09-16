@@ -95,6 +95,8 @@ async def accept_offer(
         periodic_repayment=offer.periodic_repayment,
         total_repayment=offer.total_repayment,
         outstanding_balance=offer.approved_amount,
+        calculation_methodology=offer.calculation_methodology or "reducing_balance",
+        calculation_snapshot=offer.calculation_snapshot,
         status="active"
     )
     db.add(loan)

@@ -240,6 +240,9 @@ class LoanOffer(Base):
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    calculation_methodology = Column(Text, nullable=False, default="reducing_balance")
+    calculation_snapshot = Column(JSONB, nullable=True)
+
     application = relationship("LoanApplication", back_populates="offer")
 
 
@@ -273,6 +276,9 @@ class Loan(Base):
 
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    calculation_methodology = Column(Text, nullable=False, default="reducing_balance")
+    calculation_snapshot = Column(JSONB, nullable=True)
 
     customer = relationship("Customer", back_populates="loans")
     application = relationship("LoanApplication", back_populates="loan")

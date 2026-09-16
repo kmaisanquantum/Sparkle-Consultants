@@ -39,9 +39,15 @@ SELF_HEAL_COLUMNS = [
     ("loan_applications", "draft_data", "JSONB NULL"),
     ("loan_applications", "step_completed", "INTEGER NOT NULL DEFAULT 1"),
 
+    # Table: loan_offers
+    ("loan_offers", "calculation_methodology", "TEXT NOT NULL DEFAULT 'reducing_balance'"),
+    ("loan_offers", "calculation_snapshot", "JSONB NULL"),
+
     # Table: loans
     ("loans", "net_pay_at_disbursement", "NUMERIC(14, 2) NULL"),
     ("loans", "total_deduction_pct_at_disbursement", "NUMERIC(5, 2) NULL"),
+    ("loans", "calculation_methodology", "TEXT NOT NULL DEFAULT 'reducing_balance'"),
+    ("loans", "calculation_snapshot", "JSONB NULL"),
 
     # Table: collections
     ("collections", "assigned_agent_id", "UUID NULL"),

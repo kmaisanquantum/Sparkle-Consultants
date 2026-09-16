@@ -46,6 +46,10 @@ async def get_portfolio_summary(
         select(func.sum(Collection.amount_overdue)).where(Collection.status == "open")
     )).scalar() or 0.0
 
+    # Capital Velocity / Yield metrics
+    yield_rate = (float(total_repayments) / float(total_disbursed) * 100) if total_disbursed > 0 else 0.0
+    capital_velocity = (float(total_repayments) / float(total_outstanding)) if total_outstanding > 0 else 0.0
+
     return {
         "report_generated_at": datetime.utcnow().isoformat(),
         "total_loans": total_loans,
@@ -55,7 +59,9 @@ async def get_portfolio_summary(
         "total_disbursed": float(total_disbursed),
         "total_repayments": float(total_repayments),
         "total_outstanding": float(total_outstanding),
-        "total_arrears": float(total_arrears)
+        "total_arrears": float(total_arrears),
+        "portfolio_yield_pct": round(yield_rate, 2),
+        "capital_velocity": round(capital_velocity, 2)
     }
 
 
