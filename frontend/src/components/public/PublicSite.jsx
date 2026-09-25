@@ -226,7 +226,7 @@ export default function PublicSite({ onLoginSuccess, onNavigateToApply }) {
                   Fast, Transparent, Online Loans for Papua New Guinea
                 </h1>
                 <p className="text-base md:text-lg text-ledger-paper/85 leading-relaxed">
-                  Sparkle Consultants provides 100% online loan applications, automated credit decisioning, and direct BSP payment disbursements across all PNG provinces.
+                  Sparkle Consultants provides 100% online loan applications, automated credit decisioning, and direct payment disbursements to any commercial bank across all PNG provinces.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4 pt-4">
                   <button
@@ -261,7 +261,7 @@ export default function PublicSite({ onLoginSuccess, onNavigateToApply }) {
                 <div className="text-3xl mb-3">🏦</div>
                 <h3 className="font-display text-lg font-bold text-kina-deep uppercase">Direct Bank Credit</h3>
                 <p className="text-xs text-ledger-ink/70 mt-2">
-                  Approved loan principal is disbursed directly to your BSP or commercial bank account in PGK.
+                  Approved loan principal is disbursed directly to your commercial bank account in PGK.
                 </p>
               </div>
               <div className="bg-white p-6 border border-ledger-rule rounded shadow-sm">
