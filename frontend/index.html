@@ -9,6 +9,24 @@
   </head>
   <body class="bg-ledger-paper">
     <div id="root"></div>
+    <script>
+      (() => {
+        const replacements = [
+          ["direct BSP payment disbursements across all PNG provinces.", "direct payment disbursements to any commercial bank across all PNG provinces."],
+          ["Approved loan principal is disbursed directly to your BSP or commercial bank account in PGK.", "Approved loan principal is disbursed directly to your commercial bank account in PGK."]
+        ];
+        const cleanText = (node) => {
+          if (node.nodeType === Node.TEXT_NODE) {
+            let text = node.nodeValue;
+            for (const [oldText, newText] of replacements) text = text.split(oldText).join(newText);
+            if (text !== node.nodeValue) node.nodeValue = text;
+          } else node.childNodes.forEach(cleanText);
+        };
+        const clean = () => cleanText(document.getElementById("root") || document.body);
+        new MutationObserver(clean).observe(document.body, { childList: true, subtree: true, characterData: true });
+        clean();
+      })();
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
